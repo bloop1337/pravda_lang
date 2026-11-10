@@ -13,19 +13,22 @@ static void pravda_print_error_and_exit(const char *what);
 
 // цель: написать минимальный компилятор,
 // чтоб начать писать компилятор на правде
-int main(int argc, char** argv) 
+int
+main(int argc, char** argv) 
 {
 	if (argc < 2) pravda_print_help_and_exit();
- 	char *code = pravda_read_file(argv[1]);
-	if (code == NULL) pravda_print_error_and_exit("Файл не найден.");
+// 	char *code = pravda_read_file(argv[1]);
+//	if (code == NULL) pravda_print_error_and_exit("Файл не найден.");
 
-	Pravda_Token *tokens = NULL;
-	size_t tokens_length = 0;
-	pravda_lexer_process(tokens, &tokens_length, code);
+	Pravda_Token_Stack stack = {0};
+	pravda_lexer_process(&stack, make_utf8_string(
+		"фн главная(): цел { верни 0; }"
+	));
+
+	for (size_t i = 0; i < stack.size; ++i) {
+		stack.tokens[i].type
+	}
 	
-	for (size_t i = 0; i < tokens_length; ++i)
-		printf("%s", tokens[i].content);
-
 	return 0;
 }
 
