@@ -31,40 +31,33 @@ is_digit(utf8_char ch)
 void 
 pravda_stack_init(Pravda_Token_Stack *stack) 
 {
-
-	printf("Stack was init. size = %zu, capc = %zu\n", stack->size, stack->capc);
 	stack->tokens = malloc(32 * sizeof(Pravda_Token));
     stack->size   = 0;
     stack->capc   = 32;
-
-	printf("Stack was init. size = %zu, capc = %zu\n", stack->size, stack->capc);
 }
 
 void
 pravda_stack_push(Pravda_Token_Stack *stack, Pravda_Token token)
 {
-	printf("Begin push token into stack size = %zu, capc = %zu\n", stack->size, stack->capc);
 	if (stack->capc <= stack->size) 
 		stack->tokens = realloc(stack->tokens, (int)(stack->capc*=2) * sizeof(Pravda_Token));
 	stack->size+=1;
 	stack->tokens[stack->size-1] = token; 
 	
-	printf("Token was pushed in stack. size = %zu, capc = %zu\n", stack->size, stack->capc);
 }
 
 
 
 
 void 
-pravda_lexer_process(Pravda_Token_Stack *stack,  utf8_string code) 
+pravda_lexer_process(Pravda_Token_Stack *stack, utf8_string code, const char *fpath) 
 {
-
-	printf("init stack\n");
-	pravda_stack_init(stack);	
+	pravda_stack_init(stack);
+	
+	int line      = 1;
+	int character = 1;
 
 	utf8_char_iter iter = make_utf8_char_iter(code);
-	
-	printf("begin while loop\n");
 	utf8_char ch;
 	while ((ch = next_utf8_char(&iter)).byte_len > 0) {
 	switch (unicode_code_point(ch)) {
@@ -92,18 +85,65 @@ pravda_lexer_process(Pravda_Token_Stack *stack,  utf8_string code)
 		case 0x002E:
 			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("."), PRAVDA_POINT});
 			break;
+		case 0x007B:
+			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("{"), PRAVDA_LEFT_CURLY_BRACKET});
+			break;
+		case 0x007D:
+			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("}"), PRAVDA_RIGHT_CURLY_BRACKET});
+			break;
+		case 0x003B:
+			pravda_stack_push(stack, (Pravda_Token){make_utf8_string(";"), PRAVDA_SEMICOLON});
+			break;
+		case 0x003A:
+			pravda_stack_push(stack, (Pravda_Token){make_utf8_string(":"), PRAVDA_COLON});
+			break;
+		case 0x003C: // TODO: <= case
+			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("<"), PRAVDA_LESS_THAN});
+			break;
+		case 0x003E: // TODO >= case
+			pravda_stack_push(stack, (Pravda_Token){make_utf8_string(">"), PRAVDA_GREATER_THAN});
+			break;
+		case 0x003D: // TODO == case
+			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("="), PRAVDA_ASSING});
+			break;
+		case 0x000A: // new line
+			line     += 1;
+			character = 0;
+		case 0x000B: // vertical tabulation
+		case 0x0009: // tabulation
+		case 0x000D: // return  
+		case 0x0020: // space
+			break;
 		default:
-			if (is_identifier(ch)) { // А-Я а-я 0-9 _
-							 //
+			if (is_identifier(ch)) { // А-Я а-я _
 				break;	
 			}
 
 			if (is_digit(ch)) {
 				break;
 			}
+			pravda_lexer_error(fpath, code, "Unexpected caracter", line, character);
 			break;
 	}	
+	character += 1;
 	}
 	
-	printf("end while loop\n");
+}
+
+
+//void
+//pravda_lexer_error(const char *fpath, utf8_string code, const char *what, int line, int character)
+//{
+//	printf("%s:%i:%i error: %s\n", fpath, line, character, what);
+//}
+
+void
+pravda_lexer_error(const char *fpath, utf8_string code, const char *what, int line, int character)
+{
+	const char *rst  = "\033[0m";
+	const char *bld  = "\033[1m";
+	const char *red  = "\033[1;31m";
+
+	fprintf(stderr, "%s%s:%i:%i%s %serror%s: %s%s%s\n",
+		bld, fpath, line, character, rst, red, rst,	bld, what, rst);
 }

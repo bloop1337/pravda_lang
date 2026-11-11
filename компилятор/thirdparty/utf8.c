@@ -2,6 +2,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 typedef struct {
     bool valid;
@@ -155,6 +156,12 @@ void free_owned_utf8_string(owned_utf8_string* owned_str) {
 
 utf8_char_iter make_utf8_char_iter(utf8_string ustr) {
     return (utf8_char_iter) { .str = ustr.str };
+}
+
+void utf8_iter_find_blank(utf8_char_iter* iter) {
+	utf8_char ch;
+	while((ch = next_utf8_char(iter)).byte_len > 0) 
+		if (isblank(unicode_code_point(ch))) break;	
 }
 
 bool is_utf8_char_boundary(const char* str) {

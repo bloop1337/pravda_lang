@@ -198,6 +198,7 @@ utf8_char_iter make_utf8_char_iter(utf8_string ustr);
  */
 utf8_char next_utf8_char(utf8_char_iter* iter);
 
+void utf8_iter_find_blank(utf8_char_iter* iter);
 /**
  * @brief Retrieves the UTF-8 character at the specified character index within a UTF-8 string in O(n) time.
  *
