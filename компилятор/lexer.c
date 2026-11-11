@@ -131,19 +131,9 @@ pravda_lexer_process(Pravda_Token_Stack *stack, utf8_string code, const char *fp
 }
 
 
-//void
-//pravda_lexer_error(const char *fpath, utf8_string code, const char *what, int line, int character)
-//{
-//	printf("%s:%i:%i error: %s\n", fpath, line, character, what);
-//}
-
 void
 pravda_lexer_error(const char *fpath, utf8_string code, const char *what, int line, int character)
 {
-	const char *rst  = "\033[0m";
-	const char *bld  = "\033[1m";
-	const char *red  = "\033[1;31m";
-
-	fprintf(stderr, "%s%s:%i:%i%s %serror%s: %s%s%s\n",
-		bld, fpath, line, character, rst, red, rst,	bld, what, rst);
+	fprintf(stderr, "%s:%i:%i error: %s\n", fpath, line, character, what);
 }
+
