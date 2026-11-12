@@ -197,9 +197,8 @@ utf8_char_iter make_utf8_char_iter(utf8_string ustr);
  * @note If the iterator reaches the end, it keeps returning terminating '\0' of iter.str { .str = '\0', .byte_len = 0 }
  */
 utf8_char next_utf8_char(utf8_char_iter* iter);
-
-void utf8_iter_find_blank(utf8_char_iter* iter);
-/**
+utf8_char peek_utf8_char(utf8_char_iter* iter);
+/*
  * @brief Retrieves the UTF-8 character at the specified character index within a UTF-8 string in O(n) time.
  *
  * @details The `nth_utf8_char` function returns the UTF-8 character located at the specified character index
@@ -242,5 +241,6 @@ bool is_utf8_char_boundary(const char* str);
  * @return The Unicode code point.
  */
 uint32_t unicode_code_point(utf8_char uchar);
+
 
 #endif

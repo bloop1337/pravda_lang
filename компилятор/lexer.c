@@ -1,5 +1,7 @@
 #include "lexer.h"
+#include "logger.h"
 #include <stdio.h>
+#include <ctype.h>
 #include <stdlib.h>
 
 static const char* keywords[] = {
@@ -13,7 +15,7 @@ static const char* keywords[] = {
 }; 
 
 static bool 
-is_identifier(utf8_char ch) {
+is_ident_char(utf8_char ch) {
 	return (unicode_code_point(ch) >= 0x0410  && // А-Я
 		unicode_code_point(ch) <= 0x044F) || 	// а-я
 		unicode_code_point(ch) == 0x0401  || 	// Ё
@@ -24,8 +26,7 @@ is_identifier(utf8_char ch) {
 static bool 
 is_digit(utf8_char ch) 
 {
-	return (unicode_code_point(ch) >= 0x0030  && // 0 - 9
-		unicode_code_point(ch) <= 0x0039);   // 0 - 9
+	return isdigit(unicode_code_point(ch));
 }
 
 void 
@@ -35,15 +36,13 @@ pravda_stack_init(Pravda_Token_Stack *stack)
     stack->size   = 0;
     stack->capc   = 32;
 }
-
 void
 pravda_stack_push(Pravda_Token_Stack *stack, Pravda_Token token)
 {
 	if (stack->capc <= stack->size) 
 		stack->tokens = realloc(stack->tokens, (int)(stack->capc*=2) * sizeof(Pravda_Token));
 	stack->size+=1;
-	stack->tokens[stack->size-1] = token; 
-	
+	stack->tokens[stack->size-1] = token; 	
 }
 
 
@@ -115,25 +114,32 @@ pravda_lexer_process(Pravda_Token_Stack *stack, utf8_string code, const char *fp
 		case 0x0020: // space
 			break;
 		default:
-			if (is_identifier(ch)) { // А-Я а-я _
+			if (is_ident_char(ch)) { // А-Я а-я _
+//				utf8_char next = peek_utf8_char(&iter);
+//				while (is_ident_char(next)) {
+//					// collect a identifier or keyword
+//					ch   = next_utf8_char(&iter);
+//					next = peek_utf8_char(&iter);
+//				}
+//				// push a identifier or keyword to the stack
 				break;	
 			}
 
 			if (is_digit(ch)) {
-				break;
+//				utf8_char next = peek_utf8_char(&iter);
+//				while (is_digit(next)) {
+//					// collect a number
+//					ch   = next_utf8_char(&iter);
+//					next = peek_utf8_char(&iter);
+//				}
+//				// push the number to the stack
+				break;	
 			}
-			pravda_lexer_error(fpath, code, "Unexpected caracter", line, character);
+			pravda_error(fpath, code, "Неизвестный символ", line, character);
 			break;
 	}	
 	character += 1;
 	}
 	
-}
-
-
-void
-pravda_lexer_error(const char *fpath, utf8_string code, const char *what, int line, int character)
-{
-	fprintf(stderr, "%s:%i:%i error: %s\n", fpath, line, character, what);
 }
 

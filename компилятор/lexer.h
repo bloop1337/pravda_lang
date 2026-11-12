@@ -74,6 +74,5 @@ void pravda_stack_init(Pravda_Token_Stack *stack);
 void pravda_stack_push(Pravda_Token_Stack *stack, Pravda_Token token);
 
 void pravda_lexer_process(Pravda_Token_Stack *tokens, utf8_string code, const char *fpath);
-void pravda_lexer_error(const char *path, utf8_string code, const char *what, int line, int character);
 
 #endif //LEXER_H

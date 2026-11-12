@@ -158,12 +158,6 @@ utf8_char_iter make_utf8_char_iter(utf8_string ustr) {
     return (utf8_char_iter) { .str = ustr.str };
 }
 
-void utf8_iter_find_blank(utf8_char_iter* iter) {
-	utf8_char ch;
-	while((ch = next_utf8_char(iter)).byte_len > 0) 
-		if (isblank(unicode_code_point(ch))) break;	
-}
-
 bool is_utf8_char_boundary(const char* str) {
     return (uint8_t)*str <= 0b01111111 || (uint8_t)*str >= 0b11000000;
 }
@@ -196,6 +190,13 @@ utf8_char next_utf8_char(utf8_char_iter* iter) {
     }
 
     return (utf8_char) { .str = curr_boundary, .byte_len = byte_len };
+}
+
+utf8_char peek_utf8_char(utf8_char_iter* iter) {
+	const char *save = iter->str;
+	utf8_char ch = next_utf8_char(iter);
+	iter->str = save;
+	return ch;
 }
 
 utf8_char nth_utf8_char(utf8_string ustr, size_t char_index) {
