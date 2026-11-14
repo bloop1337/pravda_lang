@@ -31,23 +31,35 @@ get_utf8_line(utf8_string code, int line) {
     }
     return slice_utf8_string(code, start_index, end_index - start_index);
 }
+
 void
-pravda_warn(const char *fpath, utf8_string code, const char *what, int line, int character)
+pravda_warn(const char *what) 
+{
+	fprintf(stderr, "\x1B[%i;%imпредупреждение:\x1B[%i;%im %s\x1B[%im\n", PRAVDA_BOLD, PRAVDA_WARN_COLOR, PRAVDA_RESET, PRAVDA_BOLD, what, PRAVDA_RESET);
+}
+
+void
+pravda_error(const char *what)
+{
+	fprintf(stderr, "\x1B[%i;%imошибка: \x1B[%i;%im%s\x1B[%im\n", PRAVDA_BOLD, PRAVDA_ERROR_COLOR, PRAVDA_RESET, PRAVDA_BOLD, what, PRAVDA_RESET);
+	exit(1);
+}
+
+void
+pravda_warn_code(const char *fpath, utf8_string code, const char *what, int line, int character)
 {
 	fprintf(stderr, "%s:%i:%i предупреждение: %s\n|\n", fpath, line, character, what);
 	utf8_string problem_code = get_utf8_line(code, line);
 
 	fprintf(stderr, "| %*i: %.*s\n", PRAVDA_NUMBER_WIDTH, line, (int)problem_code.byte_len, problem_code.str);
 	fprintf(stderr, "| %*s\n", PRAVDA_NUMBER_WIDTH+character+2, "^");
-
-	exit(1);
-
 }
 
 void
-pravda_error(const char *fpath, utf8_string code, const char *what, int line, int character)
-{	
+pravda_error_code(const char *fpath, utf8_string code, const char *what, int line, int character)
+{
 	fprintf(stderr, "\x1B[%im%s:%i:%i \x1B[%imошибка:\x1B[%im \x1B[%im%s\x1B[%im\n|\n", PRAVDA_BOLD, fpath, line, character, PRAVDA_ERROR_COLOR, PRAVDA_RESET, PRAVDA_BOLD, what, PRAVDA_RESET);
+
 	utf8_string problem_code = get_utf8_line(code, line);
 
 	fprintf(stderr, "| %*i: %.*s\n", PRAVDA_NUMBER_WIDTH, line, (int)problem_code.byte_len, problem_code.str);

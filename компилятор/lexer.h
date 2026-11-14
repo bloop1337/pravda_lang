@@ -62,6 +62,8 @@ static const char *Pravda_Token_Names[] = {
 typedef struct {
 	utf8_string content;
 	Token_Type type;
+	int line;
+	int colm;
 } Pravda_Token;
 
 typedef struct {

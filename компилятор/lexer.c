@@ -61,50 +61,72 @@ pravda_lexer_process(Pravda_Token_Stack *stack, utf8_string code, const char *fp
 	while ((ch = next_utf8_char(&iter)).byte_len > 0) {
 	switch (unicode_code_point(ch)) {
 		case 0x0028:
-			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("("), PRAVDA_LEFT_BRACKET});
+			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("("), PRAVDA_LEFT_BRACKET, line, character});
 			break;
 		case 0x0029:
-			pravda_stack_push(stack, (Pravda_Token){make_utf8_string(")"), PRAVDA_RIGHT_BRACKET});
+			pravda_stack_push(stack, (Pravda_Token){make_utf8_string(")"), PRAVDA_RIGHT_BRACKET, line, character});
 			break;
 		case 0x002A:
-			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("*"), PRAVDA_ASTERISK});
+			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("*"), PRAVDA_ASTERISK, line, character});
 			break;
 		case 0x002B:
-			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("+"), PRAVDA_PLUS});
+			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("+"), PRAVDA_PLUS, line, character});
 			break;
 		case 0x002D:
-			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("-"), PRAVDA_MINUS});
+			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("-"), PRAVDA_MINUS, line, character});
 			break;
 		case 0x002F:
-			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("/"), PRAVDA_SLASH});
+			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("/"), PRAVDA_SLASH, line, character});
 			break;
 		case 0x002C:
-			pravda_stack_push(stack, (Pravda_Token){make_utf8_string(","), PRAVDA_COMMA});
+			pravda_stack_push(stack, (Pravda_Token){make_utf8_string(","), PRAVDA_COMMA, line, character});
 			break;
 		case 0x002E:
-			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("."), PRAVDA_POINT});
+			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("."), PRAVDA_POINT, line, character});
 			break;
 		case 0x007B:
-			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("{"), PRAVDA_LEFT_CURLY_BRACKET});
+			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("{"), PRAVDA_LEFT_CURLY_BRACKET, line, character});
 			break;
 		case 0x007D:
-			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("}"), PRAVDA_RIGHT_CURLY_BRACKET});
-			break;
-		case 0x003B:
-			pravda_stack_push(stack, (Pravda_Token){make_utf8_string(";"), PRAVDA_SEMICOLON});
+			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("}"), PRAVDA_RIGHT_CURLY_BRACKET, line, character});
 			break;
 		case 0x003A:
-			pravda_stack_push(stack, (Pravda_Token){make_utf8_string(":"), PRAVDA_COLON});
+			pravda_stack_push(stack, (Pravda_Token){make_utf8_string(":"), PRAVDA_COLON, line, character});
 			break;
-		case 0x003C: // TODO: <= case
-			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("<"), PRAVDA_LESS_THAN});
+		case 0x003C: {
+			utf8_char next = peek_utf8_char(&iter);
+			if (unicode_code_point(next) == 0x003D) {
+				pravda_stack_push(stack, (Pravda_Token){make_utf8_string("<="), PRAVDA_LESS_OR_EQ_THAN, line, character});
+				next_utf8_char(&iter);
+				break;
+			}
+			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("<"), PRAVDA_LESS_THAN, line, character});
 			break;
-		case 0x003E: // TODO >= case
-			pravda_stack_push(stack, (Pravda_Token){make_utf8_string(">"), PRAVDA_GREATER_THAN});
+		}
+		case 0x003E: {
+			utf8_char next = peek_utf8_char(&iter);
+			if (unicode_code_point(next) == 0x003D) {
+				pravda_stack_push(stack, (Pravda_Token){make_utf8_string(">="), PRAVDA_GREATER_OR_EQ_THAN, line, character});
+				next_utf8_char(&iter);
+				break;
+			}
+			pravda_stack_push(stack, (Pravda_Token){make_utf8_string(">"), PRAVDA_GREATER_THAN, line, character});
 			break;
-		case 0x003D: // TODO == case
-			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("="), PRAVDA_ASSING});
+		}
+		case 0x003D: {
+			utf8_char next = peek_utf8_char(&iter);
+			if (unicode_code_point(next) == 0x003D) {
+				pravda_stack_push(stack, (Pravda_Token){make_utf8_string("=="), PRAVDA_EQUAL, line, character});
+				next_utf8_char(&iter);
+				break;
+			}
+			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("="), PRAVDA_ASSING, line, character});
 			break;
+		}
+		case 0x0022: {
+			pravda_stack_push(stack, (Pravda_Token){make_utf8_string("\""), PRAVDA_STRING, line, character});
+			break;
+		}
 		case 0x000A: // new line
 			line     += 1;
 			character = 0;
@@ -121,10 +143,9 @@ pravda_lexer_process(Pravda_Token_Stack *stack, utf8_string code, const char *fp
 //					ch   = next_utf8_char(&iter);
 //					next = peek_utf8_char(&iter);
 //				}
-//				// push a identifier or keyword to the stack
-				break;	
+//				// push a identifier or keyword to the stack break;	}
+			break;
 			}
-
 			if (is_digit(ch)) {
 //				utf8_char next = peek_utf8_char(&iter);
 //				while (is_digit(next)) {
@@ -135,11 +156,9 @@ pravda_lexer_process(Pravda_Token_Stack *stack, utf8_string code, const char *fp
 //				// push the number to the stack
 				break;	
 			}
-			pravda_error(fpath, code, "Неизвестный символ", line, character);
+			pravda_error_code(fpath, code, "Неизвестный символ", line, character);
 			break;
 	}	
 	character += 1;
-	}
-	
+	}	
 }
-
