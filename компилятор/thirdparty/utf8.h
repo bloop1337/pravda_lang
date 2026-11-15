@@ -67,6 +67,7 @@ typedef struct {
 typedef struct {
     char* str;          ///< Pointer to the UTF-8 encoded string (owned). This memory is dynamically allocated.
     size_t byte_len;    ///< Byte length of the UTF-8 string ('\0' not counted).
+	size_t capacity;	///< Number of free bytes 
 } owned_utf8_string;
 
 /**
@@ -138,6 +139,47 @@ utf8_string make_utf8_string(const char* str);
 owned_utf8_string make_utf8_string_lossy(const char* str);
 
 /**
+ * @brief  Creates an empty UTF-8 string with the given capacity.
+ *
+ * @details
+ * Allocates @p capacity bytes for the string buffer and leaves the string empty
+ * (byte_len == 0). The capacity is not validated: if @p capacity == 0, the function
+ * calls malloc(0).
+ *
+ * @param capacity  Number of bytes to allocate for the string buffer.
+ * @return          An owned UTF-8 string with the requested capacity and size 0.
+ *
+ * @code
+ * owned_utf8_string str = make_owned_with_capacity(100); // 100 bytes allocated
+ * // ... use the string ...
+ * // When done, don't forget to release it:
+ * free_owned_utf8_string(&str);
+ * @endcode
+ */
+owned_utf8_string owned_string_with_capacity(size_t capacity);
+
+/**
+ * @brieif Appends a UTF-8 character to the end of a UTF-8 string.
+ *
+ * @details
+ * If @c ustr->str is NULL, the function calls malloc(ch.byte_len) to allocate
+ * the initial buffer.
+ *
+ * @param ustr  Pointer to the UTF-8 string to append to. Must not be NULL.
+ * @param ch    UTF-8 character to append
+ *
+ * @code
+ * owned_utf8_string str = {0};
+ * utf8_char ch;
+ * utf8_char_iter iter = make_utf8_char_iter(&another_str);
+ * while ((ch = next_utf8_char(&iter)).byte_len > 0)
+ *     owned_push_back(&str, ch);
+ * @endcode
+ */
+void owned_string_push_back(owned_utf8_string* ustr, utf8_char ch);
+
+owned_utf8_string empty_owned_string();
+/**
  * @brief Creates the non-owning UTF-8 encoded string `utf8_string` from an `owned_utf8_string`.
  *
  * @details The resulting `utf8_string` will point to the same underlying string without taking ownership.
@@ -197,8 +239,10 @@ utf8_char_iter make_utf8_char_iter(utf8_string ustr);
  * @note If the iterator reaches the end, it keeps returning terminating '\0' of iter.str { .str = '\0', .byte_len = 0 }
  */
 utf8_char next_utf8_char(utf8_char_iter* iter);
+
 utf8_char peek_utf8_char(utf8_char_iter* iter);
-/*
+
+/**
  * @brief Retrieves the UTF-8 character at the specified character index within a UTF-8 string in O(n) time.
  *
  * @details The `nth_utf8_char` function returns the UTF-8 character located at the specified character index
@@ -241,6 +285,5 @@ bool is_utf8_char_boundary(const char* str);
  * @return The Unicode code point.
  */
 uint32_t unicode_code_point(utf8_char uchar);
-
 
 #endif

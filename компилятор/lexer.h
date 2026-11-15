@@ -60,10 +60,14 @@ static const char *Pravda_Token_Names[] = {
 };
 
 typedef struct {
-	utf8_string content;
+	size_t line;
+	size_t colm;
+} Pravda_Code_Postion;
+
+typedef struct {
+	owned_utf8_string content; // content.str = NULL if type != IDENTIFIER OR KEYWORD OR STRING
 	Token_Type type;
-	int line;
-	int colm;
+	Pravda_Code_Postion pos;
 } Pravda_Token;
 
 typedef struct {
