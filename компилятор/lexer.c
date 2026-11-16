@@ -1,9 +1,9 @@
 #include "lexer.h"
 #include "logger.h"
-#include <stdio.h>
+#include "token.h"
 #include <string.h>
 #include <ctype.h>
-#include <stdlib.h>
+#include "./thirdparty/utf8.h"
 
 static const char* keywords[] = {
 	"фн", "верни", "конец", "подключи"
@@ -28,22 +28,6 @@ static bool
 is_digit(utf8_char ch) 
 {
 	return isdigit(unicode_code_point(ch));
-}
-
-void 
-pravda_stack_init(Pravda_Token_Stack *stack) 
-{
-	stack->tokens = malloc(32 * sizeof(Pravda_Token));
-    stack->size   = 0;
-    stack->capc   = 32;
-}
-void
-pravda_stack_push(Pravda_Token_Stack *stack, Pravda_Token token)
-{
-	if (stack->capc <= stack->size) 
-		stack->tokens = realloc(stack->tokens, (int)(stack->capc*=2) * sizeof(Pravda_Token));
-	stack->size+=1;
-	stack->tokens[stack->size-1] = token; 	
 }
 
 static Pravda_Token

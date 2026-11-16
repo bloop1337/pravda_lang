@@ -6,6 +6,31 @@
 #include "logger.h"
 
 
+static const char *Pravda_Token_Names[] = {
+	[PRAVDA_KEYWORD]             = "PRAVDA_KEYWORD",
+	[PRAVDA_IDENTIFIER]          = "PRAVDA_IDENTIFIER",
+	[PRAVDA_INT]                 = "PRAVDA_INT",
+	[PRAVDA_FLOAT]               = "PRAVDA_FLOAT",
+	[PRAVDA_LEFT_BRACKET]        = "PRAVDA_LEFT_BRACKET",
+	[PRAVDA_RIGHT_BRACKET]       = "PRAVDA_RIGHT_BRACKET",
+	[PRAVDA_LEFT_CURLY_BRACKET]  = "PRAVDA_LEFT_CURLY_BRACKET",
+	[PRAVDA_RIGHT_CURLY_BRACKET] = "PRAVDA_RIGHT_CURLY_BRACKET",
+	[PRAVDA_PLUS]                = "PRAVDA_PLUS",
+	[PRAVDA_MINUS]               = "PRAVDA_MINUS",
+	[PRAVDA_SLASH]               = "PRAVDA_SLASH",
+	[PRAVDA_ASTERISK]            = "PRAVDA_ASTERISK",
+	[PRAVDA_COMMA]               = "PRAVDA_COMMA",
+	[PRAVDA_SEMICOLON]           = "PRAVDA_SEMICOLON",
+	[PRAVDA_POINT]               = "PRAVDA_POINT",
+	[PRAVDA_STRING]              = "PRAVDA_STRING",
+	[PRAVDA_ASSING]              = "PRAVDA_ASSING",
+	[PRAVDA_EQUAL]               = "PRAVDA_EQUAL",
+	[PRAVDA_GREATER_THAN]        = "PRAVDA_GREATER_THAN",
+	[PRAVDA_LESS_THAN]           = "PRAVDA_LESS_THAN",
+	[PRAVDA_LESS_OR_EQ_THAN]     = "PRAVDA_LESS_OR_EQ_THAN",
+	[PRAVDA_GREATER_OR_EQ_THAN]  = "PRAVDA_GREATER_OR_EQ_THAN",
+	[PRAVDA_COLON]  			 = "PRAVDA_COLON",
+};
 // выделяет память через malloc
 // возвращает NULL в случаее не удачи
 static char *pravda_read_file(const char *name);
