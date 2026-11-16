@@ -85,7 +85,8 @@ pravda_lexer_process(Pravda_Token_Stack *stack, utf8_string code, const char *fp
 			utf8_char next = peek_utf8_char(&iter);
 			if (unicode_code_point(next) == 0x003D) {
 				pravda_stack_push(stack, pravda_create_token(PRAVDA_LESS_OR_EQ_THAN, line, character));
-				next_utf8_char(&iter);
+				ch = next_utf8_char(&iter);
+				character++;
 				break;
 			}
 			pravda_stack_push(stack, pravda_create_token(PRAVDA_LESS_THAN, line, character));
@@ -96,6 +97,7 @@ pravda_lexer_process(Pravda_Token_Stack *stack, utf8_string code, const char *fp
 			if (unicode_code_point(next) == 0x003D) {
 				pravda_stack_push(stack, pravda_create_token(PRAVDA_GREATER_OR_EQ_THAN, line, character));
 				ch = next_utf8_char(&iter);
+				character++;
 				break;
 			}
 			pravda_stack_push(stack, pravda_create_token(PRAVDA_GREATER_THAN, line, character));
@@ -106,6 +108,7 @@ pravda_lexer_process(Pravda_Token_Stack *stack, utf8_string code, const char *fp
 			if (unicode_code_point(next) == 0x003D) {
 				pravda_stack_push(stack, pravda_create_token(PRAVDA_EQUAL, line, character));
 				ch = next_utf8_char(&iter);
+				character++;
 				break;
 			}
 			pravda_stack_push(stack, pravda_create_token(PRAVDA_ASSING, line, character));
@@ -116,12 +119,14 @@ pravda_lexer_process(Pravda_Token_Stack *stack, utf8_string code, const char *fp
 			if (unicode_code_point(next) == 0x0022) {
 				pravda_stack_push(stack, pravda_create_token(PRAVDA_STRING, line, character));
 				ch = next_utf8_char(&iter);
+				character++;
 				break;
 			}
 
 			owned_utf8_string str = owned_string_with_capacity(20);
 			while (((next = peek_utf8_char(&iter)).byte_len > 0) && unicode_code_point(next) != 0x0022) {
 				ch = next_utf8_char(&iter);
+				character++;
 				owned_string_push_back(&str, ch);
 			}
 			pravda_stack_push(stack, (Pravda_Token) { .content = str, .type = PRAVDA_STRING, .pos = (Pravda_Code_Postion) { .line = line, .colm = character} });
@@ -145,6 +150,7 @@ pravda_lexer_process(Pravda_Token_Stack *stack, utf8_string code, const char *fp
 				while ((next = peek_utf8_char(&iter)).byte_len > 0 && (is_ident_char(next) || is_digit(next))) {
 					ch = next_utf8_char(&iter);
 					owned_string_push_back(&str, ch);	
+					character++;
 				}
 				if (pravda_is_keyword(str.str)) {
 					pravda_stack_push(stack, (Pravda_Token) { .content = str, .type = PRAVDA_KEYWORD, .pos = (Pravda_Code_Postion) { .line = line, .colm = character} });
