@@ -2,41 +2,31 @@
 #define PRAVDA_TOKEN 1
 #include "./thirdparty/utf8.h"
 
+/* порядок ключ. слов не менять, это важно для лексера. */
 typedef enum {
-	PRAVDA_KEYWORD,	           // фн, пока, если...
-	PRAVDA_IDENTIFIER,          // названия и тд
+	PRAVDA_KEYWORD_FN,         // фн
+	PRAVDA_KEYWORD_RETURN,     // верни 
+	PRAVDA_KEYWORD_END,        // конец
+	PRAVDA_KEYWORD_LET,        // пусть
+	PRAVDA_IDENTIFIER,         // названия 
 	PRAVDA_INT,                // 2012313
-	PRAVDA_FLOAT,              // 0.301230
 	PRAVDA_LEFT_BRACKET,       // (
 	PRAVDA_RIGHT_BRACKET,      // )
-	PRAVDA_LEFT_CURLY_BRACKET, // {
-	PRAVDA_RIGHT_CURLY_BRACKET,// {
-	PRAVDA_PLUS,		       // +
-	PRAVDA_MINUS,              // - 
-	PRAVDA_SLASH,              // /
-	PRAVDA_ASTERISK,           // *
-	PRAVDA_COMMA,              // ,
-	PRAVDA_SEMICOLON,          // ;
-	PRAVDA_COLON,			   // :
 	PRAVDA_POINT,              // .
 	PRAVDA_STRING,             // "*"
 	PRAVDA_ASSING,             // =
-	PRAVDA_EQUAL,              // ==
-	PRAVDA_GREATER_THAN,       // >
-	PRAVDA_LESS_THAN,          // <
-	PRAVDA_LESS_OR_EQ_THAN,    // <=
-	PRAVDA_GREATER_OR_EQ_THAN, // >=
-} Token_Type;
+	PRAVDA_COLON               // :
+} Pravda_Token_Type;
 
 typedef struct {
 	size_t line;
 	size_t colm;
-} Pravda_Code_Postion;
+} Pravda_Code_Position;
 
 typedef struct {
 	owned_utf8_string content; // content.str = NULL if type != IDENTIFIER OR KEYWORD OR STRING
-	Token_Type type;
-	Pravda_Code_Postion pos;
+	Pravda_Token_Type type;
+	Pravda_Code_Position pos;
 } Pravda_Token;
 
 typedef struct {
@@ -47,5 +37,7 @@ typedef struct {
 
 void pravda_stack_init(Pravda_Token_Stack *stack);
 void pravda_stack_push(Pravda_Token_Stack *stack, Pravda_Token token);
+
+void pravda_free_token(Pravda_Token *token);
 
 #endif

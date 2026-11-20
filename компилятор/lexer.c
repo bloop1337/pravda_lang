@@ -5,18 +5,29 @@
 #include <ctype.h>
 #include "./thirdparty/utf8.h"
 
-static const char* keywords[] = {
-	"фн", "верни", "конец", "подключи"
-}; 
+static char *keywords[] = {
+	"фн",
+	"верни",
+	"конец",
+	"пусть",
+};
 
-static bool pravda_is_keyword(const char* s) {
+/* Возвращает номер Token_Type если это ключевое слово. Иначе -1 */
+static unsigned int 
+pravda_is_keyword(const char* s) 
+{
 	size_t n = sizeof(keywords) / sizeof(keywords[0]);
-	for (size_t i = 0; i < n; ++i) if (strcmp(keywords[i], s) == 0) return true;
-	return false;
+	for (size_t i = 0; i < n; ++i) { 
+		if (strcmp(keywords[i], s) == 0) { 
+			return i; 
+		}
+	}
+	return -1;
 }
 
 static bool 
-is_ident_char(utf8_char ch) {
+is_ident_char(utf8_char ch)
+{
 	return (unicode_code_point(ch) >= 0x0410  && // А-Я
 		unicode_code_point(ch) <= 0x044F) || 	// а-я
 		unicode_code_point(ch) == 0x0401  || 	// Ё
@@ -31,9 +42,9 @@ is_digit(utf8_char ch)
 }
 
 static Pravda_Token
-pravda_create_token(Token_Type type, int line, int character)
+pravda_create_token(Pravda_Token_Type type, int line, int character)
 {
-	return (Pravda_Token) { .content = empty_owned_string(), .type = type, (Pravda_Code_Postion) {line, character} };
+	return (Pravda_Token) { .content = empty_owned_string(), .type = type, (Pravda_Code_Position) {line, character} };
 }
 
 void 
@@ -54,71 +65,21 @@ pravda_lexer_process(Pravda_Token_Stack *stack, utf8_string code, const char *fp
 		case 0x0029:
 			pravda_stack_push(stack, pravda_create_token(PRAVDA_RIGHT_BRACKET, line, character));
 			break;
-		case 0x002A:
-			pravda_stack_push(stack, pravda_create_token(PRAVDA_ASTERISK, line, character));
-			break;
-		case 0x002B:
-			pravda_stack_push(stack, pravda_create_token(PRAVDA_ASTERISK, line, character));
-			break;
-		case 0x002D:
-			pravda_stack_push(stack, pravda_create_token(PRAVDA_MINUS, line, character));
-			break;
-		case 0x002F:
-			pravda_stack_push(stack, pravda_create_token(PRAVDA_SLASH, line, character));
-			break;
-		case 0x002C:
-			pravda_stack_push(stack, pravda_create_token(PRAVDA_COMMA, line, character));
-			break;
 		case 0x002E:
 			pravda_stack_push(stack, pravda_create_token(PRAVDA_POINT, line, character));
-			break;
-		case 0x007B:
-			pravda_stack_push(stack, pravda_create_token(PRAVDA_LEFT_CURLY_BRACKET, line, character));
-			break;
-		case 0x007D:
-			pravda_stack_push(stack, pravda_create_token(PRAVDA_RIGHT_CURLY_BRACKET, line, character));
 			break;
 		case 0x003A:
 			pravda_stack_push(stack, pravda_create_token(PRAVDA_COLON, line, character));
 			break;
-		case 0x003C: {
-			utf8_char next = peek_utf8_char(&iter);
-			if (unicode_code_point(next) == 0x003D) {
-				pravda_stack_push(stack, pravda_create_token(PRAVDA_LESS_OR_EQ_THAN, line, character));
-				ch = next_utf8_char(&iter);
-				character++;
-				break;
-			}
-			pravda_stack_push(stack, pravda_create_token(PRAVDA_LESS_THAN, line, character));
-			break;
-		}
-		case 0x003E: {
-			utf8_char next = peek_utf8_char(&iter);
-			if (unicode_code_point(next) == 0x003D) {
-				pravda_stack_push(stack, pravda_create_token(PRAVDA_GREATER_OR_EQ_THAN, line, character));
-				ch = next_utf8_char(&iter);
-				character++;
-				break;
-			}
-			pravda_stack_push(stack, pravda_create_token(PRAVDA_GREATER_THAN, line, character));
-			break;
-		}
 		case 0x003D: {
-			utf8_char next = peek_utf8_char(&iter);
-			if (unicode_code_point(next) == 0x003D) {
-				pravda_stack_push(stack, pravda_create_token(PRAVDA_EQUAL, line, character));
-				ch = next_utf8_char(&iter);
-				character++;
-				break;
-			}
 			pravda_stack_push(stack, pravda_create_token(PRAVDA_ASSING, line, character));
 			break;
 		}
 		case 0x0022: {
 			utf8_char next = peek_utf8_char(&iter);	
 			if (unicode_code_point(next) == 0x0022) {
-				pravda_stack_push(stack, pravda_create_token(PRAVDA_STRING, line, character));
-				ch = next_utf8_char(&iter);
+				pravda_stack_push(stack, pravda_create_token(PRAVDA_STRING, line, character)); // EMPTY STR
+				ch = next_utf8_char(&iter); // TAKE "
 				character++;
 				break;
 			}
@@ -129,8 +90,8 @@ pravda_lexer_process(Pravda_Token_Stack *stack, utf8_string code, const char *fp
 				character++;
 				owned_string_push_back(&str, ch);
 			}
-			pravda_stack_push(stack, (Pravda_Token) { .content = str, .type = PRAVDA_STRING, .pos = (Pravda_Code_Postion) { .line = line, .colm = character} });
-			ch = next_utf8_char(&iter);
+			pravda_stack_push(stack, (Pravda_Token) { .content = str, .type = PRAVDA_STRING, .pos = (Pravda_Code_Position) { .line = line, .colm = character} });
+			ch = next_utf8_char(&iter); // TAKE "
 			break;
 		}
 		case 0x000A: // new line
@@ -152,12 +113,29 @@ pravda_lexer_process(Pravda_Token_Stack *stack, utf8_string code, const char *fp
 					owned_string_push_back(&str, ch);	
 					character++;
 				}
-				if (pravda_is_keyword(str.str)) {
-					pravda_stack_push(stack, (Pravda_Token) { .content = str, .type = PRAVDA_KEYWORD, .pos = (Pravda_Code_Postion) { .line = line, .colm = character} });
+				int keyword_type = pravda_is_keyword(str.str);
+				if (keyword_type < 0) {
+					/* воспринимаем как идентификатор */
+					pravda_stack_push(stack, (Pravda_Token) { .content = str, .type = PRAVDA_IDENTIFIER, .pos = (Pravda_Code_Position) { .line = line, .colm = character} });
 				} else {
-					pravda_stack_push(stack, (Pravda_Token) { .content = str, .type = PRAVDA_IDENTIFIER, .pos = (Pravda_Code_Postion) { .line = line, .colm = character} });
+					/* воспринимаем как ключ. слово*/
+					pravda_stack_push(stack, (Pravda_Token) { .content = str, .type = (Pravda_Token_Type)keyword_type, .pos = (Pravda_Code_Position) { .line = line, .colm = character} });
 				}
 
+				break;
+			}
+			if (is_digit(ch)) {
+				owned_utf8_string str = owned_string_with_capacity(6);
+				utf8_char next;
+
+				owned_string_push_back(&str, ch);
+				while ((next = peek_utf8_char(&iter)).byte_len > 0 && is_digit(next)) {
+					ch = next_utf8_char(&iter);
+					owned_string_push_back(&str, ch);	
+					character++;
+				}
+
+				pravda_stack_push(stack, (Pravda_Token) { .content = str, .type = PRAVDA_INT, .pos = (Pravda_Code_Position) { .line = line, .colm = character} });
 				break;
 			}
 			pravda_error_code(fpath, code, "Неизвестный символ", line, character);

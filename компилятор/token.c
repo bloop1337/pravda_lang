@@ -25,3 +25,12 @@ pravda_stack_push(Pravda_Token_Stack *stack, Pravda_Token token)
 	stack->size+=1;
 	stack->tokens[stack->size-1] = token; 	
 }
+
+void
+pravda_free_token(Pravda_Token *token)
+{
+	if (token->content.str != NULL) free_owned_utf8_string(&token->content);
+	token->pos = (Pravda_Code_Position){0};
+	token->type = 0;
+}
+

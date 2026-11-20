@@ -1,34 +1,26 @@
 #include <sys/stat.h>
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+
+#include "ast.h"
 #include "lexer.h"
 #include "logger.h"
-
+#include "parser.h"
 
 static const char *Pravda_Token_Names[] = {
-	[PRAVDA_KEYWORD]             = "PRAVDA_KEYWORD",
+	[PRAVDA_KEYWORD_FN]          = "PRAVDA_KEYWORD_FN",
+	[PRAVDA_KEYWORD_RETURN]      = "PRAVDA_KEYWORD_RETURN",
+	[PRAVDA_KEYWORD_END]         = "PRAVDA_KEYWORD_END",
+	[PRAVDA_KEYWORD_LET]         = "PRAVDA_KEYWORD_LET",
 	[PRAVDA_IDENTIFIER]          = "PRAVDA_IDENTIFIER",
 	[PRAVDA_INT]                 = "PRAVDA_INT",
-	[PRAVDA_FLOAT]               = "PRAVDA_FLOAT",
 	[PRAVDA_LEFT_BRACKET]        = "PRAVDA_LEFT_BRACKET",
 	[PRAVDA_RIGHT_BRACKET]       = "PRAVDA_RIGHT_BRACKET",
-	[PRAVDA_LEFT_CURLY_BRACKET]  = "PRAVDA_LEFT_CURLY_BRACKET",
-	[PRAVDA_RIGHT_CURLY_BRACKET] = "PRAVDA_RIGHT_CURLY_BRACKET",
-	[PRAVDA_PLUS]                = "PRAVDA_PLUS",
-	[PRAVDA_MINUS]               = "PRAVDA_MINUS",
-	[PRAVDA_SLASH]               = "PRAVDA_SLASH",
-	[PRAVDA_ASTERISK]            = "PRAVDA_ASTERISK",
-	[PRAVDA_COMMA]               = "PRAVDA_COMMA",
-	[PRAVDA_SEMICOLON]           = "PRAVDA_SEMICOLON",
 	[PRAVDA_POINT]               = "PRAVDA_POINT",
 	[PRAVDA_STRING]              = "PRAVDA_STRING",
 	[PRAVDA_ASSING]              = "PRAVDA_ASSING",
-	[PRAVDA_EQUAL]               = "PRAVDA_EQUAL",
-	[PRAVDA_GREATER_THAN]        = "PRAVDA_GREATER_THAN",
-	[PRAVDA_LESS_THAN]           = "PRAVDA_LESS_THAN",
-	[PRAVDA_LESS_OR_EQ_THAN]     = "PRAVDA_LESS_OR_EQ_THAN",
-	[PRAVDA_GREATER_OR_EQ_THAN]  = "PRAVDA_GREATER_OR_EQ_THAN",
 	[PRAVDA_COLON]  			 = "PRAVDA_COLON",
 };
 // выделяет память через malloc
@@ -54,6 +46,10 @@ main(int argc, char** argv)
 	for (size_t i = 0; i < stack.size; ++i) {
 		pravda_print_token(&stack.tokens[i]);
 	}
+	
+	Pravda_Ast_Node node = {0};
+	pravda_parser_process(&node, &stack, ucode, argv[1]);
+
 	free(code);	
 	return 0;
 }
