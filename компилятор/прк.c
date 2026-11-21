@@ -59,6 +59,49 @@ typedef struct {
 	size_t colm;
 } Err_Info;
 
+
+/*
+ * долго не мог разобратся как реализовать АСТ на си, но нашел
+ * очень полезную статью, если интересно, рекомендую к прочтению
+ * https://keleshev.com/abstract-syntax-tree-an-example-in-c/
+ */
+struct Ast_Node {
+	enum {
+		AST_BLOCK,
+		AST_NUMBER,
+		AST_PLUS,
+		AST_MINUS,
+		AST_MULTIPLE,
+		AST_DEVIDE,
+	} kind;
+	union {
+		struct AST_BLOCK{
+			struct Ast_Node *block;
+			size_t size;
+			size_t capc;
+		} AST_BLOCK;
+		struct AST_NUMBER { 
+			int value;
+		} AST_NUMBER;
+		struct AST_PLUS     {
+			struct Ast_Node *lhs;
+			struct Ast_Node *rhs;
+		} AST_PLUS;
+		struct AST_MINUS    {
+			struct Ast_Node *lhs; 
+			struct Ast_Node *rhs;
+		} AST_MINUS;
+		struct AST_MULTIPLE {
+			struct Ast_Node *lhs; 
+			struct Ast_Node *rhs;
+		} AST_MULTIPLE;
+		struct AST_DEVIDE   {
+			struct Ast_Node *lhs; 
+			struct Ast_Node *rhs;
+		} AST_DEVIDE;
+	} data;
+};
+
 /*functions decl*/
 static char *read_file(const char *name);
 static int is_file(const char *path);
@@ -77,6 +120,12 @@ static void error_exit(const char *what, int error_code);
 static void error_code(const char *what, Err_Info info);
 
 static void print_token(Code_Token *token);
+
+static struct Ast_Node *ast_node_new(struct Ast_Node node); 
+static void ast_node_block(struct Ast_Node *root, size_t capacity);
+static void ast_node_block_push_back(struct Ast_Node *root, struct Ast_Node *node);
+
+static void ast_node_print(struct Ast_Node *node, int level);
 
 /*constants*/
 static char *keywords[] = { "фн", "верни", "если", "пока", "конец", "пусть", };
@@ -371,6 +420,92 @@ print_token(Code_Token *token)
 	printf("Токен{тип = '%s', содержание = '%s'};\n", Token_Names[token->type], token->content.str);
 }
 
+static void
+ast_node_print(struct Ast_Node *node, int level)
+{
+	switch (node->kind) {
+		case AST_BLOCK: {
+			struct AST_BLOCK data = node->data.AST_BLOCK; 
+			printf("%*sprogram\n", level*4, " ");
+			for (size_t i = 0; i < data.size; ++i)
+				ast_node_print(&data.block[i], level+1);
+			break;
+		}
+		case AST_NUMBER: {
+			struct AST_NUMBER data = node->data.AST_NUMBER; 
+			printf("%*snumber(%i)\n", level*4, " ", data.value);
+			break;
+		}
+		case AST_PLUS: {
+			struct AST_PLUS data = node->data.AST_PLUS; 
+			printf("%*splus: \n", level*4, " ");
+			ast_node_print(data.lhs, level+1);
+			ast_node_print(data.rhs, level+1);
+			break;
+		}
+		case AST_MINUS: {
+			struct AST_MINUS data = node->data.AST_MINUS; 
+			printf("%*sminus: \n", level*4, " ");
+			ast_node_print(data.lhs, level+1);
+			ast_node_print(data.rhs, level+1);
+			break;
+		}
+		case AST_MULTIPLE: {
+			struct AST_MULTIPLE data = node->data.AST_MULTIPLE; 
+			printf("%*smultiple: \n", level*4, " ");
+			ast_node_print(data.lhs, level+1);
+			ast_node_print(data.rhs, level+1);
+			break;
+		}
+		case AST_DEVIDE: {
+			struct AST_DEVIDE data = node->data.AST_DEVIDE; 
+			printf("%*sdevide: \n", level*4, " ");
+			ast_node_print(data.lhs, level+1);
+			ast_node_print(data.rhs, level+1);
+			break;
+		}
+		default:
+			error_exit("Неизвестный тип в AST", 1);
+			break;
+	}
+}
+
+static struct Ast_Node *
+ast_node_new(struct Ast_Node node)
+{
+	struct Ast_Node *ptr = malloc(sizeof(struct Ast_Node));
+	if (ptr) *ptr = node;
+	return ptr;
+}
+
+static void
+ast_node_block(struct Ast_Node *block, size_t capacity)
+{
+	struct Ast_Node *tmp = malloc(sizeof(struct Ast_Node) * capacity);
+	if (!tmp) return;
+
+	block->kind = AST_BLOCK;	
+	block->data.AST_BLOCK.block = tmp;
+	block->data.AST_BLOCK.size  = 0;
+	block->data.AST_BLOCK.capc  = capacity;
+}
+
+static void
+ast_node_block_push_back(struct Ast_Node *block, struct Ast_Node *node)
+{
+	if (block->data.AST_BLOCK.capc <= block->data.AST_BLOCK.size) {
+		struct Ast_Node *tmp = realloc(
+			block->data.AST_BLOCK.block,
+			block->data.AST_BLOCK.capc * sizeof(struct Ast_Node) * 2
+		);
+		if (!tmp) return;
+		block->data.AST_BLOCK.block = tmp;
+		block->data.AST_BLOCK.capc *= 2;
+	}
+	block->data.AST_BLOCK.size += 1;	
+	block->data.AST_BLOCK.block[block->data.AST_BLOCK.size - 1] = *node;	
+}
+
 int
 main(int argc, char **argv)
 {
@@ -384,6 +519,48 @@ main(int argc, char **argv)
 	for (size_t i = 0; i < stack.size; ++i) {
 		print_token(&stack.toks[i]);
 	}
+	
+	struct Ast_Node node = (struct Ast_Node) {0};
+	ast_node_block(&node, 2);
+	ast_node_block_push_back(&node, ast_node_new((struct Ast_Node){
+		AST_PLUS, {
+			.AST_PLUS = (struct AST_PLUS) {
+				.lhs = ast_node_new((struct Ast_Node){ 
+					.kind = AST_NUMBER, { .AST_NUMBER = (struct AST_NUMBER){10} }
+				}),
+				.rhs = ast_node_new((struct Ast_Node){ 
+					.kind = AST_NUMBER, { .AST_NUMBER = (struct AST_NUMBER){40} }
+				}),
+			}
+		}
+	}));
+	ast_node_block_push_back(&node, ast_node_new((struct Ast_Node){
+		AST_MULTIPLE, {
+			.AST_MULTIPLE = (struct AST_MULTIPLE) {
+				.lhs = ast_node_new((struct Ast_Node){ 
+					.kind = AST_NUMBER, { .AST_NUMBER = (struct AST_NUMBER){2} }
+				}),
+				.rhs = ast_node_new((struct Ast_Node){ 
+					.kind = AST_NUMBER, { .AST_NUMBER = (struct AST_NUMBER){4} }
+				}),
+			}
+		}
+	}));
+	ast_node_block_push_back(&node, ast_node_new((struct Ast_Node){
+		AST_DEVIDE, {
+			.AST_DEVIDE = (struct AST_DEVIDE) {
+				.lhs = ast_node_new((struct Ast_Node){ 
+					.kind = AST_NUMBER, { .AST_NUMBER = (struct AST_NUMBER){90} }
+				}),
+				.rhs = ast_node_new((struct Ast_Node){ 
+					.kind = AST_NUMBER, { .AST_NUMBER = (struct AST_NUMBER){9} }
+				}),
+			}
+		}
+	}));
+
+	ast_node_print(&node, 0);
+
 
 	free_owned_utf8_string(&code);
 	return EXIT_SUCCESS;
