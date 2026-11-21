@@ -73,7 +73,9 @@ static unsigned int is_keyword(const char* s);
 static int  is_ident_char(utf8_char ch);
 static void lexer_proc(Token_Stack *tokens, utf8_string code, const char* fpath);
 
+static void error_exit(const char *what, int error_code);
 static void error_code(const char *what, Err_Info info);
+
 static void print_token(Code_Token *token);
 
 /*constants*/
@@ -190,6 +192,13 @@ code_line(utf8_string code, int line) {
         end_index += ch.byte_len;
     }
     return (Code_Line) { slice_utf8_string(code, start_index, end_index - start_index), tabs };
+}
+
+static void
+error_exit(const char *what, int exit_code)
+{
+	fprintf(stderr, "\x1B[%imошибка:\x1B[%im \x1B[%im%s\x1B[%im\n", 31, 0, 1, what, 0);
+	exit(exit_code);
 }
 
 static void
@@ -367,7 +376,7 @@ main(int argc, char **argv)
 {
 	if (argc < 2) print_help_and_exit();
 	owned_utf8_string code = make_utf8_string_lossy(read_file(argv[1]));
-	if (code.str == NULL) error_code("Неудалось открыть файл!", (Err_Info){0});
+	if (code.str == NULL) error_exit("Неудалось открыть файл, возможно, его не существует или это директория.", 1);
 	
 	Token_Stack stack = {0};
 	lexer_proc(&stack, as_utf8_string(&code), argv[1]);	
