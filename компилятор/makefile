@@ -1,4 +1,4 @@
 
 
 all: прк.c 
-	cc -Wextra -Wall -o прк прк.c
+	gcc -g -Wextra -Wall -o прк прк.c

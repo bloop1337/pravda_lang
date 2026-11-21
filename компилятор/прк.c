@@ -7,6 +7,9 @@
 #define UTF8_IMPL
 #include "ютф8.h"
 
+#define AST_NODE_NEW(tag, ...) \
+	ast_node_new((struct Ast_Node){ tag, {.tag = (struct tag){ __VA_ARGS__ }} })
+
 /* enums */
 typedef enum {
 	TOKEN_KEYWORD_FN,         /* фн       */      
@@ -45,6 +48,10 @@ typedef struct {
 	size_t size;
 	size_t capc;
 } Token_Stack;
+
+typedef struct {
+	Code_Token *current;
+} Token_Stack_Iter;
 
 typedef struct {
 	utf8_string str;
@@ -112,6 +119,13 @@ static void stack_init(Token_Stack *stack, size_t capacity);
 static void stack_push(Token_Stack *stack, Code_Token token);
 static void stack_free(Token_Stack *stack);
 
+static Token_Stack_Iter stack_iter(Token_Stack *stack);
+static int stack_iter_has_next(Token_Stack_Iter *iter);
+static void stack_iter_next(Token_Stack_Iter *iter);
+static Code_Token* stack_iter_peek(Token_Stack_Iter *iter);
+static void stack_iter_check(Token_Stack_Iter *iter, Token_Type type, const char *path, utf8_string code);
+static void stack_iter_consume(Token_Stack_Iter *iter, Token_Type type, const char *path, utf8_string code);
+
 static unsigned int is_keyword(const char* s);
 static int  is_ident_char(utf8_char ch);
 static void lexer_proc(Token_Stack *tokens, utf8_string code, const char* fpath);
@@ -121,11 +135,21 @@ static void error_code(const char *what, Err_Info info);
 
 static void print_token(Code_Token *token);
 
+static int is_operator(Token_Type type);
+static struct Ast_Node *new_node_from_operator(struct Ast_Node *lhs, struct Ast_Node *rhs, Token_Type op);
+
 static struct Ast_Node *ast_node_new(struct Ast_Node node); 
 static void ast_node_block(struct Ast_Node *root, size_t capacity);
 static void ast_node_block_push_back(struct Ast_Node *root, struct Ast_Node *node);
 
 static void ast_node_print(struct Ast_Node *node, int level);
+
+static struct Ast_Node parser_proc(Token_Stack *tokens, const char *path, utf8_string code);
+
+static struct Ast_Node *parser_parse_expr(int min_bp, Token_Stack_Iter *iter, const char *path, utf8_string code);
+
+static int l_binding_power(Token_Type type);
+static int r_binding_power(Token_Type type);
 
 /*constants*/
 static char *keywords[] = { "фн", "верни", "если", "пока", "конец", "пусть", };
@@ -185,6 +209,52 @@ stack_free(Token_Stack *stack)
 	free(stack->toks);
 	stack->capc   = 0;
 	stack->size   = 0;
+}
+
+static Token_Stack_Iter
+stack_iter(Token_Stack *stack)
+{
+	return (Token_Stack_Iter) { .current = stack->toks };
+}
+
+static int
+stack_iter_has_next(Token_Stack_Iter *iter)
+{
+	return !(iter->current->type == TOKEN_EOF);
+}
+
+static void
+stack_iter_next(Token_Stack_Iter *iter)
+{
+	if (stack_iter_has_next(iter)) iter->current++;
+}
+
+static Code_Token* 
+stack_iter_peek(Token_Stack_Iter *iter)
+{
+	Code_Token *cur = iter->current;
+	stack_iter_next(iter);
+	Code_Token *next = iter->current;
+	iter->current = cur;
+	return next;
+}
+static void
+stack_iter_check(Token_Stack_Iter *iter, Token_Type type, const char *path, utf8_string code)
+{
+	if (iter->current->type == type) return;
+	error_code("Неожиданный токен: {}! Ожидался: {}", (Err_Info) { path, code, iter->current->line, iter->current->colm });
+}
+
+static void
+stack_iter_consume(Token_Stack_Iter *iter, Token_Type type, const char *path, utf8_string code)
+{
+	if (iter->current->type == type) {
+		stack_iter_next(iter);
+		return;
+	}
+
+	// TODO: как то внедрить тип токена в диагностику
+	error_code("Неожиданный токен: {}! Ожидался: {}", (Err_Info){path, code, iter->current->line, iter->current->colm });
 }
 
 /* Возвращает номер Token_Type если это ключевое слово. Иначе -1 */
@@ -506,6 +576,126 @@ ast_node_block_push_back(struct Ast_Node *block, struct Ast_Node *node)
 	block->data.AST_BLOCK.block[block->data.AST_BLOCK.size - 1] = *node;	
 }
 
+
+static struct Ast_Node
+parser_proc(Token_Stack *tokens, const char *path, utf8_string code)
+{
+	struct Ast_Node root = {0};
+	ast_node_block(&root, tokens->size);
+
+	Token_Stack_Iter iter = stack_iter(tokens);
+	
+	while (stack_iter_has_next(&iter)) {
+		switch (iter.current->type) {
+			case TOKEN_INT:
+				ast_node_block_push_back(&root, parser_parse_expr(0, &iter, path, code));
+				break;
+			default:
+				error_code("Not implemented.", (Err_Info){ path, code, iter.current->line, iter.current->colm});
+				break;
+		}
+	}
+	return root;
+}
+
+static int 
+is_operator(Token_Type type)
+{
+	return type == TOKEN_PLUS || type == TOKEN_MINUS ||
+		type == TOKEN_ASTERISK || type == TOKEN_SLASH;
+}
+
+static struct Ast_Node *new_node_from_operator(
+	struct Ast_Node *lhs, struct  Ast_Node *rhs, Token_Type op)
+{
+	switch (op) {
+		case TOKEN_PLUS:
+			return AST_NODE_NEW(AST_PLUS, lhs, rhs);
+		case TOKEN_MINUS:
+			return AST_NODE_NEW(AST_MINUS, lhs, rhs);
+		case TOKEN_ASTERISK:
+			return AST_NODE_NEW(AST_MULTIPLE, lhs, rhs);
+		case TOKEN_SLASH:
+			return AST_NODE_NEW(AST_DEVIDE, lhs, rhs);
+		default:
+			error_exit("new_node_from_operator: Не известный тип токена!", 1);
+			return NULL; // никогда не произойдет
+			break;
+	}
+}
+
+static int 
+l_binding_power(Token_Type type)
+{
+	int res = 0;
+	switch (type) {
+		case TOKEN_PLUS: /* FALL THROUGH */
+		case TOKEN_MINUS:
+			res = 1;
+			break;
+		case TOKEN_ASTERISK: /* FALL THROUGH */
+		case TOKEN_SLASH:
+			res = 3;
+			break;
+		default:
+			fprintf(stderr, "Оператор не распознан: %s\n", Token_Names[type]);
+			break;
+	}
+	return res;
+}
+
+static int
+r_binding_power(Token_Type type)
+{
+	int res = 0;
+	switch (type) {
+		case TOKEN_PLUS: /* FALL THROUGH */
+		case TOKEN_MINUS:
+			res = 2;
+			break;
+		case TOKEN_ASTERISK: /* FALL THROUGH */
+		case TOKEN_SLASH:
+			res = 4;
+			break;
+		default:
+			fprintf(stderr, "Оператор не распознан: %s\n", Token_Names[type]);
+			break;
+	}
+	return res;
+}
+
+/* Pratt parsing */
+static struct Ast_Node *
+parser_parse_expr(int min_bp, Token_Stack_Iter *iter, const char *path, utf8_string code)
+{	
+	if (iter->current->type != TOKEN_IDENTIFIER && iter->current->type != TOKEN_INT)
+		error_code("Ожидалась константа или идентификатор.", (Err_Info){path, code, iter->current->line, iter->current->colm});
+
+	struct Ast_Node *lhs = AST_NODE_NEW(AST_NUMBER, atoi(iter->current->content.str));
+		
+	while (1) {
+		Code_Token *tok = stack_iter_peek(iter);
+		if (tok->type == TOKEN_EOF) break;
+		if (!is_operator(tok->type))
+			error_code("Ожидается оператор после выржания.", (Err_Info){path, code, tok->line, tok->colm});
+
+	//      1                          2	
+		int lbp = l_binding_power(tok->type), rbp = r_binding_power(tok->type);
+		if (lbp < min_bp) {
+			break;
+		}	
+		stack_iter_next(iter);// operator
+		stack_iter_next(iter);// next
+
+		struct Ast_Node *rhs = parser_parse_expr(rbp, iter, path, code);
+		
+		lhs = new_node_from_operator(lhs, rhs, tok->type);
+	}
+	
+	return lhs;
+}
+
+
 int
 main(int argc, char **argv)
 {
@@ -516,51 +706,18 @@ main(int argc, char **argv)
 	Token_Stack stack = {0};
 	lexer_proc(&stack, as_utf8_string(&code), argv[1]);	
 
+	printf("Код:\n %s\n", code.str);
+
+
 	for (size_t i = 0; i < stack.size; ++i) {
 		print_token(&stack.toks[i]);
 	}
-	
-	struct Ast_Node node = (struct Ast_Node) {0};
-	ast_node_block(&node, 2);
-	ast_node_block_push_back(&node, ast_node_new((struct Ast_Node){
-		AST_PLUS, {
-			.AST_PLUS = (struct AST_PLUS) {
-				.lhs = ast_node_new((struct Ast_Node){ 
-					.kind = AST_NUMBER, { .AST_NUMBER = (struct AST_NUMBER){10} }
-				}),
-				.rhs = ast_node_new((struct Ast_Node){ 
-					.kind = AST_NUMBER, { .AST_NUMBER = (struct AST_NUMBER){40} }
-				}),
-			}
-		}
-	}));
-	ast_node_block_push_back(&node, ast_node_new((struct Ast_Node){
-		AST_MULTIPLE, {
-			.AST_MULTIPLE = (struct AST_MULTIPLE) {
-				.lhs = ast_node_new((struct Ast_Node){ 
-					.kind = AST_NUMBER, { .AST_NUMBER = (struct AST_NUMBER){2} }
-				}),
-				.rhs = ast_node_new((struct Ast_Node){ 
-					.kind = AST_NUMBER, { .AST_NUMBER = (struct AST_NUMBER){4} }
-				}),
-			}
-		}
-	}));
-	ast_node_block_push_back(&node, ast_node_new((struct Ast_Node){
-		AST_DEVIDE, {
-			.AST_DEVIDE = (struct AST_DEVIDE) {
-				.lhs = ast_node_new((struct Ast_Node){ 
-					.kind = AST_NUMBER, { .AST_NUMBER = (struct AST_NUMBER){90} }
-				}),
-				.rhs = ast_node_new((struct Ast_Node){ 
-					.kind = AST_NUMBER, { .AST_NUMBER = (struct AST_NUMBER){9} }
-				}),
-			}
-		}
-	}));
+	printf("\n");
 
-	ast_node_print(&node, 0);
-
+//	struct Ast_Node ast = parser_proc(&stack, argv[1], as_utf8_string(&code));
+	Token_Stack_Iter iter = stack_iter(&stack);
+	struct Ast_Node *ast = parser_parse_expr(0, &iter, argv[1], as_utf8_string(&code));
+	ast_node_print(ast, 0);
 
 	free_owned_utf8_string(&code);
 	return EXIT_SUCCESS;
