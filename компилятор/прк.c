@@ -756,17 +756,17 @@ parser_parse_type(Token_Stack_Iter *iter, const char *path, utf8_string code)
 	stack_iter_check(iter, TOKEN_IDENTIFIER, path, code);
 	owned_utf8_string type = iter->current->content;
 
-	if (strcmp(type.str, "цел") || strcmp(type.str, "цел32")) {
+	if (strcmp(type.str, "цел") == 0 || strcmp(type.str, "цел32") == 0) {
 		return AST_NODE_NEW(AST_TYPE, TYPE_INT_32);
-	} else if (strcmp(type.str, "цел8")) {
+	} else if (strcmp(type.str, "цел8") == 0) {
 		return AST_NODE_NEW(AST_TYPE, TYPE_INT_8);
-	} else if (strcmp(type.str, "цел16")) {
+	} else if (strcmp(type.str, "цел16") == 0) {
 		return AST_NODE_NEW(AST_TYPE, TYPE_INT_16);
-	} else if (strcmp(type.str, "нат") || strcmp(type.str, "нат32")) {
+	} else if (strcmp(type.str, "нат") == 0 || strcmp(type.str, "нат32") == 0) {
 		return AST_NODE_NEW(AST_TYPE, TYPE_UINT_32);
-	} else if (strcmp(type.str, "нат16")) {
+	} else if (strcmp(type.str, "нат16") == 0) {
 		return AST_NODE_NEW(AST_TYPE, TYPE_UINT_16);
-	} else if (strcmp(type.str, "нат8")) {
+	} else if (strcmp(type.str, "нат8") == 0) {
 		return AST_NODE_NEW(AST_TYPE, TYPE_UINT_8);
 	} else {
 		error_code("Неизвестный тип переменной!", (Err_Info){path, code, iter->current->line, iter->current->colm});
