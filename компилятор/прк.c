@@ -80,6 +80,8 @@ struct Ast_Node {
 		AST_MINUS,
 		AST_MULTIPLE,
 		AST_DEVIDE,
+		AST_TYPE,
+		AST_VAR_DEF,
 	} kind;
 	union {
 		struct AST_BLOCK{
@@ -106,6 +108,20 @@ struct Ast_Node {
 			struct Ast_Node *lhs; 
 			struct Ast_Node *rhs;
 		} AST_DEVIDE;
+		struct AST_TYPE     {
+			enum {
+				TYPE_UINT_8,
+				TYPE_UINT_16,
+				TYPE_UINT_32,
+				TYPE_INT_8,
+				TYPE_INT_16,
+				TYPE_INT_32,
+			} type;
+		} AST_TYPE;
+		struct AST_VAR_DEF  {
+			struct Ast_Node *type;
+			struct Ast_Node *expr;
+		} AST_VAR_DEF;
 	} data;
 };
 
@@ -124,7 +140,7 @@ static int stack_iter_has_next(Token_Stack_Iter *iter);
 static void stack_iter_next(Token_Stack_Iter *iter);
 static Code_Token* stack_iter_peek(Token_Stack_Iter *iter);
 static void stack_iter_check(Token_Stack_Iter *iter, Token_Type type, const char *path, utf8_string code);
-static void stack_iter_consume(Token_Stack_Iter *iter, Token_Type type, const char *path, utf8_string code);
+static void stack_iter_accept(Token_Stack_Iter *iter, Token_Type type, const char *path, utf8_string code);
 
 static unsigned int is_keyword(const char* s);
 static int  is_ident_char(utf8_char ch);
@@ -146,6 +162,8 @@ static void ast_node_print(struct Ast_Node *node, int level);
 
 static struct Ast_Node parser_proc(Token_Stack *tokens, const char *path, utf8_string code);
 
+static struct Ast_Node *parser_parse_let(Token_Stack_Iter *iter, const char *path, utf8_string code);
+static struct Ast_Node *parser_parse_type(Token_Stack_Iter *iter, const char *path, utf8_string code);
 static struct Ast_Node *parser_parse_expr(int min_bp, Token_Stack_Iter *iter, const char *path, utf8_string code);
 
 static int l_binding_power(Token_Type type);
@@ -242,6 +260,17 @@ static void
 stack_iter_check(Token_Stack_Iter *iter, Token_Type type, const char *path, utf8_string code)
 {
 	if (iter->current->type == type) return;
+	error_code("Неожиданный токен: {}! Ожидался: {}", (Err_Info) { path, code, iter->current->line, iter->current->colm });
+}
+
+static void
+stack_iter_accept(Token_Stack_Iter *iter, Token_Type type, const char *path, utf8_string code)
+{
+	if (iter->current->type == type) {
+		stack_iter_next(iter);
+		return;
+	}
+
 	error_code("Неожиданный токен: {}! Ожидался: {}", (Err_Info) { path, code, iter->current->line, iter->current->colm });
 }
 
@@ -587,8 +616,15 @@ parser_proc(Token_Stack *tokens, const char *path, utf8_string code)
 	
 	while (stack_iter_has_next(&iter)) {
 		switch (iter.current->type) {
+			case TOKEN_KEYWORD_LET:
+				ast_node_block_push_back(&root, parser_parse_let(&iter, path, code));
+				stack_iter_next(&iter);
+				stack_iter_accept(&iter, TOKEN_SEMICOLON, path, code);
+				break;
 			case TOKEN_INT:
 				ast_node_block_push_back(&root, parser_parse_expr(0, &iter, path, code));
+				stack_iter_next(&iter);
+				stack_iter_accept(&iter, TOKEN_SEMICOLON, path, code);
 				break;
 			default:
 				error_code("Not implemented.", (Err_Info){ path, code, iter.current->line, iter.current->colm});
@@ -675,7 +711,7 @@ parser_parse_expr(int min_bp, Token_Stack_Iter *iter, const char *path, utf8_str
 		
 	while (1) {
 		Code_Token *tok = stack_iter_peek(iter);
-		if (tok->type == TOKEN_EOF) break;
+		if (tok->type == TOKEN_EOF || tok->type == TOKEN_SEMICOLON) break;
 		if (!is_operator(tok->type))
 			error_code("Ожидается оператор после выржания.", (Err_Info){path, code, tok->line, tok->colm});
 
@@ -695,6 +731,9 @@ parser_parse_expr(int min_bp, Token_Stack_Iter *iter, const char *path, utf8_str
 	return lhs;
 }
 
+static struct Ast_Node *parser_parse_let(Token_Stack_Iter *iter, const char *path, utf8_string code) {
+
+}
 
 int
 main(int argc, char **argv)
@@ -708,16 +747,13 @@ main(int argc, char **argv)
 
 	printf("Код:\n %s\n", code.str);
 
-
 	for (size_t i = 0; i < stack.size; ++i) {
 		print_token(&stack.toks[i]);
 	}
 	printf("\n");
 
-//	struct Ast_Node ast = parser_proc(&stack, argv[1], as_utf8_string(&code));
-	Token_Stack_Iter iter = stack_iter(&stack);
-	struct Ast_Node *ast = parser_parse_expr(0, &iter, argv[1], as_utf8_string(&code));
-	ast_node_print(ast, 0);
+	struct Ast_Node ast = parser_proc(&stack, argv[1], as_utf8_string(&code));
+	ast_node_print(&ast, 0);
 
 	free_owned_utf8_string(&code);
 	return EXIT_SUCCESS;
