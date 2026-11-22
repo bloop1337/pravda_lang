@@ -119,6 +119,7 @@ struct Ast_Node {
 			} type;
 		} AST_TYPE;
 		struct AST_VAR_DEF  {
+			owned_utf8_string id;
 			struct Ast_Node *type;
 			struct Ast_Node *expr;
 		} AST_VAR_DEF;
@@ -171,6 +172,14 @@ static int r_binding_power(Token_Type type);
 
 /*constants*/
 static char *keywords[] = { "фн", "верни", "если", "пока", "конец", "пусть", };
+static const char *Type_Names[] = {
+	[TYPE_UINT_8]  = "нат8",
+	[TYPE_UINT_16] = "нат16",
+	[TYPE_UINT_32] = "нат32",
+	[TYPE_INT_8]   = "цел8",
+	[TYPE_INT_16]  = "цел16",
+	[TYPE_INT_32]  = "цел32",
+};
 
 static const char *Token_Names[] = {
 	[TOKEN_KEYWORD_FN]          = "KEYWORD_FN",
@@ -562,6 +571,16 @@ ast_node_print(struct Ast_Node *node, int level)
 			ast_node_print(data.lhs, level+1);
 			ast_node_print(data.rhs, level+1);
 			break;
+		} case AST_TYPE: {
+			struct AST_TYPE data = node->data.AST_TYPE;
+			printf("%*stype: %s\n", level*4, " ", Type_Names[data.type]);
+			break;
+		} case AST_VAR_DEF: {
+			struct AST_VAR_DEF data = node->data.AST_VAR_DEF;
+			printf("%*svariable: %s\n", level*4, " ", data.id.str);
+			ast_node_print(data.type, level+1);
+			ast_node_print(data.expr, level+1);
+			break;
 		}
 		default:
 			error_exit("Неизвестный тип в AST", 1);
@@ -637,8 +656,8 @@ parser_proc(Token_Stack *tokens, const char *path, utf8_string code)
 static int 
 is_operator(Token_Type type)
 {
-	return type == TOKEN_PLUS || type == TOKEN_MINUS ||
-		type == TOKEN_ASTERISK || type == TOKEN_SLASH;
+	return type == TOKEN_PLUS || type == TOKEN_MINUS 
+		|| type == TOKEN_ASTERISK || type == TOKEN_SLASH;
 }
 
 static struct Ast_Node *new_node_from_operator(
@@ -710,29 +729,68 @@ parser_parse_expr(int min_bp, Token_Stack_Iter *iter, const char *path, utf8_str
 	struct Ast_Node *lhs = AST_NODE_NEW(AST_NUMBER, atoi(iter->current->content.str));
 		
 	while (1) {
-		Code_Token *tok = stack_iter_peek(iter);
-		if (tok->type == TOKEN_EOF || tok->type == TOKEN_SEMICOLON) break;
-		if (!is_operator(tok->type))
-			error_code("Ожидается оператор после выржания.", (Err_Info){path, code, tok->line, tok->colm});
+		Token_Type op = stack_iter_peek(iter)->type;
+		if (op == TOKEN_EOF || op == TOKEN_SEMICOLON) break;
+		if (!is_operator(op))
+			error_code("Ожидается оператор или ';' после выржания.", (Err_Info){path, code, iter->current->line, iter->current->colm});
 
 	//      1                          2	
-		int lbp = l_binding_power(tok->type), rbp = r_binding_power(tok->type);
+		int lbp = l_binding_power(op), rbp = r_binding_power(op);
 		if (lbp < min_bp) {
 			break;
 		}	
 		stack_iter_next(iter);// operator
-		stack_iter_next(iter);// next
+		stack_iter_next(iter);// const
 
 		struct Ast_Node *rhs = parser_parse_expr(rbp, iter, path, code);
 		
-		lhs = new_node_from_operator(lhs, rhs, tok->type);
+		lhs = new_node_from_operator(lhs, rhs, op);
 	}
 	
 	return lhs;
 }
 
-static struct Ast_Node *parser_parse_let(Token_Stack_Iter *iter, const char *path, utf8_string code) {
+static struct Ast_Node *
+parser_parse_type(Token_Stack_Iter *iter, const char *path, utf8_string code)
+{
+	stack_iter_check(iter, TOKEN_IDENTIFIER, path, code);
+	owned_utf8_string type = iter->current->content;
 
+	if (strcmp(type.str, "цел") || strcmp(type.str, "цел32")) {
+		return AST_NODE_NEW(AST_TYPE, TYPE_INT_32);
+	} else if (strcmp(type.str, "цел8")) {
+		return AST_NODE_NEW(AST_TYPE, TYPE_INT_8);
+	} else if (strcmp(type.str, "цел16")) {
+		return AST_NODE_NEW(AST_TYPE, TYPE_INT_16);
+	} else if (strcmp(type.str, "нат") || strcmp(type.str, "нат32")) {
+		return AST_NODE_NEW(AST_TYPE, TYPE_UINT_32);
+	} else if (strcmp(type.str, "нат16")) {
+		return AST_NODE_NEW(AST_TYPE, TYPE_UINT_16);
+	} else if (strcmp(type.str, "нат8")) {
+		return AST_NODE_NEW(AST_TYPE, TYPE_UINT_8);
+	} else {
+		error_code("Неизвестный тип переменной!", (Err_Info){path, code, iter->current->line, iter->current->colm});
+		return NULL;
+	}
+}
+
+static struct Ast_Node *
+parser_parse_let(Token_Stack_Iter *iter, const char *path, utf8_string code) 
+{
+	stack_iter_accept(iter, TOKEN_KEYWORD_LET, path, code);
+
+	stack_iter_check(iter, TOKEN_IDENTIFIER, path, code);
+	owned_utf8_string id = iter->current->content;
+	stack_iter_next(iter);
+
+	stack_iter_accept(iter, TOKEN_COLON, path, code);
+	struct Ast_Node *type = parser_parse_type(iter, path, code);
+	stack_iter_next(iter);
+	
+	stack_iter_accept(iter, TOKEN_ASSING, path, code);
+	struct Ast_Node *expr = parser_parse_expr(0, iter, path, code);
+
+	return AST_NODE_NEW(AST_VAR_DEF, id, type, expr);
 }
 
 int
@@ -745,7 +803,7 @@ main(int argc, char **argv)
 	Token_Stack stack = {0};
 	lexer_proc(&stack, as_utf8_string(&code), argv[1]);	
 
-	printf("Код:\n %s\n", code.str);
+	printf("Код:\n%s\n", code.str);
 
 	for (size_t i = 0; i < stack.size; ++i) {
 		print_token(&stack.toks[i]);
