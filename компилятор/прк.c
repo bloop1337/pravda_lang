@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <ctype.h>
 
 #include <sys/stat.h>
@@ -149,6 +150,7 @@ static void lexer_proc(Token_Stack *tokens, utf8_string code, const char* fpath)
 
 static void error_exit(const char *what, int error_code);
 static void error_code(const char *what, Err_Info info);
+static void error_code_fmt(const char *what, Err_Info info, ...);
 
 static void print_token(Code_Token *token);
 
@@ -182,26 +184,26 @@ static const char *Type_Names[] = {
 };
 
 static const char *Token_Names[] = {
-	[TOKEN_KEYWORD_FN]          = "KEYWORD_FN",
-	[TOKEN_KEYWORD_RETURN]      = "KEYWORD_RETURN",
-	[TOKEN_KEYWORD_IF]          = "KEYWORD_IF",
-	[TOKEN_KEYWORD_WHILE]       = "KEYWORD_WHILE",
-	[TOKEN_KEYWORD_END]         = "KEYWORD_END",
-	[TOKEN_KEYWORD_LET]         = "KEYWORD_LET",
-	[TOKEN_IDENTIFIER]          = "IDENTIFIER",
-	[TOKEN_INT]                 = "INT",
-	[TOKEN_LEFT_BRACKET]        = "LEFT_BRACKET",
-	[TOKEN_RIGHT_BRACKET]       = "RIGHT_BRACKET",
-	[TOKEN_SEMICOLON]           = "SEMICOLON",
-	[TOKEN_STRING]              = "STRING",
-	[TOKEN_ASSING]              = "ASSING",
-	[TOKEN_COLON]  			    = "COLON",
-	[TOKEN_COMMA]  			    = "COMMA",
-	[TOKEN_ASTERISK]  			= "ASTERISK",
-	[TOKEN_SLASH]  			    = "SLASH",
-	[TOKEN_PLUS]  			    = "PLUS",
-	[TOKEN_MINUS]  			    = "MINUS",
-	[TOKEN_EOF]  			    = "END OF FILE",
+	[TOKEN_KEYWORD_FN]          = "ключевое слово: 'фн'",
+	[TOKEN_KEYWORD_RETURN]      = "ключевое слово: 'верни'",
+	[TOKEN_KEYWORD_IF]          = "ключевое слово: 'если'",
+	[TOKEN_KEYWORD_WHILE]       = "ключевое слово: 'пока'",
+	[TOKEN_KEYWORD_END]         = "ключевое слово: 'конец'",
+	[TOKEN_KEYWORD_LET]         = "ключевое слово: 'пусть'",
+	[TOKEN_IDENTIFIER]          = "идентификатор",
+	[TOKEN_INT]                 = "число",
+	[TOKEN_LEFT_BRACKET]        = "(",
+	[TOKEN_RIGHT_BRACKET]       = ")",
+	[TOKEN_SEMICOLON]           = ";",
+	[TOKEN_STRING]              = "строка",
+	[TOKEN_ASSING]              = "=",
+	[TOKEN_COLON]  			    = ":",
+	[TOKEN_COMMA]  			    = ",",
+	[TOKEN_ASTERISK]  			= "*",
+	[TOKEN_SLASH]  			    = "/",
+	[TOKEN_PLUS]  			    = "+",
+	[TOKEN_MINUS]  			    = "-",
+	[TOKEN_EOF]  			    = "конец_файла",
 };
 
 /*function impl*/
@@ -269,7 +271,11 @@ static void
 stack_iter_check(Token_Stack_Iter *iter, Token_Type type, const char *path, utf8_string code)
 {
 	if (iter->current->type == type) return;
-	error_code("Неожиданный токен: {}! Ожидался: {}", (Err_Info) { path, code, iter->current->line, iter->current->colm });
+	
+	error_code_fmt("Неожиданный токен: '%s'! Ожидался: '%s'",
+		(Err_Info){path, code, iter->current->line, iter->current->colm },
+		Token_Names[iter->current->type], Token_Names[type]
+	);
 }
 
 static void
@@ -279,20 +285,10 @@ stack_iter_accept(Token_Stack_Iter *iter, Token_Type type, const char *path, utf
 		stack_iter_next(iter);
 		return;
 	}
-
-	error_code("Неожиданный токен: {}! Ожидался: {}", (Err_Info) { path, code, iter->current->line, iter->current->colm });
-}
-
-static void
-stack_iter_consume(Token_Stack_Iter *iter, Token_Type type, const char *path, utf8_string code)
-{
-	if (iter->current->type == type) {
-		stack_iter_next(iter);
-		return;
-	}
-
-	// TODO: как то внедрить тип токена в диагностику
-	error_code("Неожиданный токен: {}! Ожидался: {}", (Err_Info){path, code, iter->current->line, iter->current->colm });
+	error_code_fmt("Неожиданный токен: '%s'! Ожидался: '%s'",
+		(Err_Info){path, code, iter->current->line, iter->current->colm },
+		Token_Names[iter->current->type], Token_Names[type]
+	);
 }
 
 /* Возвращает номер Token_Type если это ключевое слово. Иначе -1 */
@@ -369,6 +365,22 @@ error_code(const char* what, Err_Info info)
 	fprintf(stderr, "| %*s\n", 6+(int)info.colm+2-problem_code.tabs, "^");
 
 	exit(1);
+}
+
+static void error_code_fmt(const char *what, Err_Info info, ...) {
+	char *fmt;
+	va_list list;
+	
+	va_start(list, info);
+	if (0 > vasprintf(&fmt, what, list)) fmt = NULL;
+	va_end(list);
+	
+	if (fmt) {
+		error_code(fmt, info);
+		free(fmt); // лишнее?
+	} else {
+		error_code(what, info);
+	}
 }
 
 static void 
@@ -732,7 +744,10 @@ parser_parse_expr(int min_bp, Token_Stack_Iter *iter, const char *path, utf8_str
 		Token_Type op = stack_iter_peek(iter)->type;
 		if (op == TOKEN_EOF || op == TOKEN_SEMICOLON) break;
 		if (!is_operator(op))
-			error_code("Ожидается оператор или ';' после выржания.", (Err_Info){path, code, iter->current->line, iter->current->colm});
+			error_code_fmt("Ожидается 'оператор' или ';' после '%s', полученно: '%s'.", 
+				(Err_Info){path, code, iter->current->line, iter->current->colm},
+				Token_Names[iter->current->type], Token_Names[op]
+			);
 
 	//      1                          2	
 		int lbp = l_binding_power(op), rbp = r_binding_power(op);
