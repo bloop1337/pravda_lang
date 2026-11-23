@@ -62,12 +62,13 @@ void test_parser_case_0() {
 	for (size_t i = 0; i < sizeof(expected) / sizeof(expected[0]); ++i)
 		assert(stack.toks[i].type == expected[i]);
 
-	struct Ast_Node root = parser_proc(&stack, "тест", code);
+	struct Ast_Node *root = parser_proc(&stack, "тест", code);
 	
-	struct AST_BLOCK data = root.data.AST_BLOCK;
-	printf("data.size = %zu\n", data.size);
-	assert(data.block[0].kind == AST_NUMBER);
-	assert(data.size == 1);
+	struct AST_BLOCK data = root->data.AST_BLOCK;
+	assert(data.block[0]->kind == AST_NUMBER && "Тест провален, ожидался тип ЧИСЛО");
+	assert(data.size == 1 && "Тест провален, ожидался размер равный 1");
+
+	ast_node_free(root);
 }
 
 int 
