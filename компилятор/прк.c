@@ -77,39 +77,27 @@ struct Ast_Node {
 	enum {
 		AST_BLOCK,
 		AST_NUMBER,
-		AST_PLUS,
-		AST_MINUS,
-		AST_MULTIPLE,
-		AST_DEVIDE,
+		AST_BINOP,
 		AST_TYPE,
 		AST_VAR_DEF,
 	} kind;
 	union {
-		struct AST_BLOCK{
-			struct Ast_Node *block;
+		struct AST_BLOCK {
+			struct Ast_Node **block;
 			size_t size;
 			size_t capc;
 		} AST_BLOCK;
 		struct AST_NUMBER { 
 			int value;
 		} AST_NUMBER;
-		struct AST_PLUS     {
-			struct Ast_Node *lhs;
-			struct Ast_Node *rhs;
-		} AST_PLUS;
-		struct AST_MINUS    {
+		struct AST_BINOP {
+			enum {
+				OP_ADD, OP_SUB, OP_MULT, OP_DIV,
+			} op_type;
 			struct Ast_Node *lhs; 
 			struct Ast_Node *rhs;
-		} AST_MINUS;
-		struct AST_MULTIPLE {
-			struct Ast_Node *lhs; 
-			struct Ast_Node *rhs;
-		} AST_MULTIPLE;
-		struct AST_DEVIDE   {
-			struct Ast_Node *lhs; 
-			struct Ast_Node *rhs;
-		} AST_DEVIDE;
-		struct AST_TYPE     {
+		} AST_BINOP;
+		struct AST_TYPE {
 			enum {
 				TYPE_UINT_8,
 				TYPE_UINT_16,
@@ -163,11 +151,13 @@ static void ast_node_block_push_back(struct Ast_Node *root, struct Ast_Node *nod
 
 static void ast_node_print(struct Ast_Node *node, int level);
 
-static struct Ast_Node parser_proc(Token_Stack *tokens, const char *path, utf8_string code);
+static struct Ast_Node *parser_proc(Token_Stack *tokens, const char *path, utf8_string code);
 
 static struct Ast_Node *parser_parse_let(Token_Stack_Iter *iter, const char *path, utf8_string code);
 static struct Ast_Node *parser_parse_type(Token_Stack_Iter *iter, const char *path, utf8_string code);
 static struct Ast_Node *parser_parse_expr(int min_bp, Token_Stack_Iter *iter, const char *path, utf8_string code);
+
+static void ast_node_free(struct Ast_Node * node);
 
 static int l_binding_power(Token_Type type);
 static int r_binding_power(Token_Type type);
@@ -548,7 +538,7 @@ ast_node_print(struct Ast_Node *node, int level)
 			struct AST_BLOCK data = node->data.AST_BLOCK; 
 			printf("%*sprogram\n", level*4, " ");
 			for (size_t i = 0; i < data.size; ++i)
-				ast_node_print(&data.block[i], level+1);
+				ast_node_print(data.block[i], level+1);
 			break;
 		}
 		case AST_NUMBER: {
@@ -556,38 +546,19 @@ ast_node_print(struct Ast_Node *node, int level)
 			printf("%*snumber(%i)\n", level*4, " ", data.value);
 			break;
 		}
-		case AST_PLUS: {
-			struct AST_PLUS data = node->data.AST_PLUS; 
-			printf("%*splus: \n", level*4, " ");
+		case AST_BINOP: {
+			struct AST_BINOP data = node->data.AST_BINOP; 
+			printf("%*s%i: \n", level*4, " ", data.op_type);
 			ast_node_print(data.lhs, level+1);
 			ast_node_print(data.rhs, level+1);
 			break;
 		}
-		case AST_MINUS: {
-			struct AST_MINUS data = node->data.AST_MINUS; 
-			printf("%*sminus: \n", level*4, " ");
-			ast_node_print(data.lhs, level+1);
-			ast_node_print(data.rhs, level+1);
-			break;
-		}
-		case AST_MULTIPLE: {
-			struct AST_MULTIPLE data = node->data.AST_MULTIPLE; 
-			printf("%*smultiple: \n", level*4, " ");
-			ast_node_print(data.lhs, level+1);
-			ast_node_print(data.rhs, level+1);
-			break;
-		}
-		case AST_DEVIDE: {
-			struct AST_DEVIDE data = node->data.AST_DEVIDE; 
-			printf("%*sdevide: \n", level*4, " ");
-			ast_node_print(data.lhs, level+1);
-			ast_node_print(data.rhs, level+1);
-			break;
-		} case AST_TYPE: {
+		case AST_TYPE: {
 			struct AST_TYPE data = node->data.AST_TYPE;
 			printf("%*stype: %s\n", level*4, " ", Type_Names[data.type]);
 			break;
-		} case AST_VAR_DEF: {
+		} 
+		case AST_VAR_DEF: {
 			struct AST_VAR_DEF data = node->data.AST_VAR_DEF;
 			printf("%*svariable: %s\n", level*4, " ", data.id.str);
 			ast_node_print(data.type, level+1);
@@ -611,7 +582,7 @@ ast_node_new(struct Ast_Node node)
 static void
 ast_node_block(struct Ast_Node *block, size_t capacity)
 {
-	struct Ast_Node *tmp = malloc(sizeof(struct Ast_Node) * capacity);
+	struct Ast_Node **tmp = malloc(sizeof(struct Ast_Node) * capacity);
 	if (!tmp) return;
 
 	block->kind = AST_BLOCK;	
@@ -624,7 +595,7 @@ static void
 ast_node_block_push_back(struct Ast_Node *block, struct Ast_Node *node)
 {
 	if (block->data.AST_BLOCK.capc <= block->data.AST_BLOCK.size) {
-		struct Ast_Node *tmp = realloc(
+		struct Ast_Node **tmp = realloc(
 			block->data.AST_BLOCK.block,
 			block->data.AST_BLOCK.capc * sizeof(struct Ast_Node) * 2
 		);
@@ -633,27 +604,27 @@ ast_node_block_push_back(struct Ast_Node *block, struct Ast_Node *node)
 		block->data.AST_BLOCK.capc *= 2;
 	}
 	block->data.AST_BLOCK.size += 1;	
-	block->data.AST_BLOCK.block[block->data.AST_BLOCK.size - 1] = *node;	
+	block->data.AST_BLOCK.block[block->data.AST_BLOCK.size - 1] = node;	
 }
 
 
-static struct Ast_Node
+static struct Ast_Node *
 parser_proc(Token_Stack *tokens, const char *path, utf8_string code)
 {
-	struct Ast_Node root = {0};
-	ast_node_block(&root, tokens->size);
+	struct Ast_Node *root = AST_NODE_NEW(AST_BLOCK, 0);
+	ast_node_block(root, tokens->size);
 
 	Token_Stack_Iter iter = stack_iter(tokens);
 	
 	while (stack_iter_has_next(&iter)) {
 		switch (iter.current->type) {
 			case TOKEN_KEYWORD_LET:
-				ast_node_block_push_back(&root, parser_parse_let(&iter, path, code));
+				ast_node_block_push_back(root, parser_parse_let(&iter, path, code));
 				stack_iter_next(&iter);
 				stack_iter_accept(&iter, TOKEN_SEMICOLON, path, code);
 				break;
 			case TOKEN_INT:
-				ast_node_block_push_back(&root, parser_parse_expr(0, &iter, path, code));
+				ast_node_block_push_back(root, parser_parse_expr(0, &iter, path, code));
 				stack_iter_next(&iter);
 				stack_iter_accept(&iter, TOKEN_SEMICOLON, path, code);
 				break;
@@ -677,13 +648,13 @@ static struct Ast_Node *new_node_from_operator(
 {
 	switch (op) {
 		case TOKEN_PLUS:
-			return AST_NODE_NEW(AST_PLUS, lhs, rhs);
+			return AST_NODE_NEW(AST_BINOP, OP_ADD, lhs, rhs);
 		case TOKEN_MINUS:
-			return AST_NODE_NEW(AST_MINUS, lhs, rhs);
+			return AST_NODE_NEW(AST_BINOP, OP_SUB, lhs, rhs);
 		case TOKEN_ASTERISK:
-			return AST_NODE_NEW(AST_MULTIPLE, lhs, rhs);
+			return AST_NODE_NEW(AST_BINOP, OP_MULT, lhs, rhs);
 		case TOKEN_SLASH:
-			return AST_NODE_NEW(AST_DEVIDE, lhs, rhs);
+			return AST_NODE_NEW(AST_BINOP, OP_DIV, lhs, rhs);
 		default:
 			error_exit("new_node_from_operator: Не известный тип токена!", 1);
 			return NULL; // никогда не произойдет
@@ -808,12 +779,49 @@ parser_parse_let(Token_Stack_Iter *iter, const char *path, utf8_string code)
 	return AST_NODE_NEW(AST_VAR_DEF, id, type, expr);
 }
 
+
+static void
+ast_node_free(struct Ast_Node *node) 
+{
+	switch (node->kind) {
+		case AST_BLOCK: {
+			struct AST_BLOCK data = node->data.AST_BLOCK;
+			for (size_t i = 0; i < data.size; ++i)
+				ast_node_free(data.block[i]);
+			free(data.block);
+			data.block = NULL;
+			data.size  = 0;
+			data.capc  = 0;
+			break;
+		}
+		case AST_BINOP: {
+			struct AST_BINOP data = node->data.AST_BINOP;
+			ast_node_free(data.lhs);
+			ast_node_free(data.rhs);
+			break;
+		}
+		case AST_VAR_DEF: {
+			struct AST_VAR_DEF data = node->data.AST_VAR_DEF;
+			free_owned_utf8_string(&data.id);
+			ast_node_free(data.type);
+			ast_node_free(data.expr);
+		}
+		case AST_NUMBER: /* FALL THROUGH */
+		case AST_TYPE:
+			break;
+	};
+	free(node);
+}
+
 int
 main(int argc, char **argv)
 {
 	if (argc < 2) print_help_and_exit();
 	owned_utf8_string code = make_utf8_string_lossy(read_file(argv[1]));
-	if (code.str == NULL) error_exit("Неудалось открыть файл, возможно, его не существует или это директория.", 1);
+	if (code.str == NULL) error_exit(
+		"Неудалось открыть файл, возможно,"
+		"его не существует или это директория.", 1
+	);
 	
 	Token_Stack stack = {0};
 	lexer_proc(&stack, as_utf8_string(&code), argv[1]);	
@@ -825,9 +833,11 @@ main(int argc, char **argv)
 	}
 	printf("\n");
 
-	struct Ast_Node ast = parser_proc(&stack, argv[1], as_utf8_string(&code));
-	ast_node_print(&ast, 0);
+	struct Ast_Node *ast = parser_proc(&stack, argv[1], as_utf8_string(&code));
+	ast_node_print(ast, 0);
 
 	free_owned_utf8_string(&code);
+	ast_node_free(ast);
+	stack_free(&stack);
 	return EXIT_SUCCESS;
 }
