@@ -35,7 +35,7 @@ void test_lexer_case_0() {
 
 void test_lexer_case_1() {
 	Token_Stack stack = {0};
-	lexer_proc(&stack, make_utf8_string("пусть а: цел = 10;"), "тест0");
+	lexer_proc(&stack, make_utf8_string("пусть а: цел = 10;"), "тест1");
 	Token_Type expected[] = {
  		TOKEN_KEYWORD_LET,
 		TOKEN_IDENTIFIER,
@@ -45,6 +45,47 @@ void test_lexer_case_1() {
 		TOKEN_INT,
 		TOKEN_SEMICOLON,
 		TOKEN_EOF,
+	};
+	assert(stack.size == sizeof(expected) / sizeof(expected[0]));
+
+	for (size_t i = 0; i < sizeof(expected) / sizeof(expected[0]); ++i) {
+		assert(stack.toks[i].type == expected[i]);
+	}
+	stack_free(&stack);
+}
+
+void test_lexer_case_2() {
+	Token_Stack stack = {0};
+	lexer_proc(&stack, make_utf8_string("пусть пусть: цел8 = 4020;"), "тест2");
+	Token_Type expected[] = {
+ 		TOKEN_KEYWORD_LET,
+ 		TOKEN_KEYWORD_LET,
+		TOKEN_COLON,
+		TOKEN_IDENTIFIER,
+		TOKEN_ASSING,
+		TOKEN_INT,
+		TOKEN_SEMICOLON,
+		TOKEN_EOF,
+	};
+	assert(stack.size == sizeof(expected) / sizeof(expected[0]));
+
+	for (size_t i = 0; i < sizeof(expected) / sizeof(expected[0]); ++i) {
+		assert(stack.toks[i].type == expected[i]);
+	}
+	stack_free(&stack);
+}
+
+void test_lexer_case_3() {
+	Token_Stack stack = {0};
+	lexer_proc(&stack, make_utf8_string("фн пусть если верни пока конец"), "тест3");
+	Token_Type expected[] = {
+ 		TOKEN_KEYWORD_FN,
+ 		TOKEN_KEYWORD_LET,
+ 		TOKEN_KEYWORD_IF,
+ 		TOKEN_KEYWORD_RETURN,
+ 		TOKEN_KEYWORD_WHILE,
+ 		TOKEN_KEYWORD_END,
+ 		TOKEN_EOF,
 	};
 	assert(stack.size == sizeof(expected) / sizeof(expected[0]));
 
@@ -74,8 +115,10 @@ void test_parser_case_0() {
 int 
 main()
 {	
-	TEST(test_lexer_case_0);	
-	TEST(test_lexer_case_1);	
-	TEST(test_parser_case_0);	
+	TEST(test_lexer_case_0);
+	TEST(test_lexer_case_1);
+	TEST(test_lexer_case_2);
+	TEST(test_lexer_case_3);
+	TEST(test_parser_case_0);
 	return 0;
 }

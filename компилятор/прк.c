@@ -67,10 +67,9 @@ typedef struct {
 	size_t colm;
 } Err_Info;
 
-
 /*
- * долго не мог разобратся как реализовать АСТ на си, но нашел
- * очень полезную статью, если интересно, рекомендую к прочтению
+ * очень полезная статья, про AST на си, если интересно,
+ * рекомендую к прочтению:
  * https://keleshev.com/abstract-syntax-tree-an-example-in-c/
  */
 struct Ast_Node {
@@ -80,6 +79,7 @@ struct Ast_Node {
 		AST_BINOP,
 		AST_TYPE,
 		AST_VAR_DEF,
+		AST_RETURN,
 	} kind;
 	union {
 		struct AST_BLOCK {
@@ -112,6 +112,9 @@ struct Ast_Node {
 			struct Ast_Node *type;
 			struct Ast_Node *expr;
 		} AST_VAR_DEF;
+		struct AST_RETURN {
+			struct Ast_Node *expr;
+		} AST_RETURN;
 	} data;
 };
 
@@ -156,6 +159,7 @@ static struct Ast_Node *parser_proc(Token_Stack *tokens, const char *path, utf8_
 static struct Ast_Node *parser_parse_let(Token_Stack_Iter *iter, const char *path, utf8_string code);
 static struct Ast_Node *parser_parse_type(Token_Stack_Iter *iter, const char *path, utf8_string code);
 static struct Ast_Node *parser_parse_expr(int min_bp, Token_Stack_Iter *iter, const char *path, utf8_string code);
+static struct Ast_Node *parser_parse_ret(Token_Stack_Iter *iter, const char *path, utf8_string code);
 
 static void ast_node_free(struct Ast_Node * node);
 
@@ -171,6 +175,13 @@ static const char *Type_Names[] = {
 	[TYPE_INT_8]   = "цел8",
 	[TYPE_INT_16]  = "цел16",
 	[TYPE_INT_32]  = "цел32",
+};
+
+static const char *Operator_Names[] = {
+	[OP_ADD]  = "сложение",
+	[OP_SUB]  = "вычитание",
+	[OP_MULT] = "умножение",
+	[OP_DIV]  = "деление",
 };
 
 static const char *Token_Names[] = {
@@ -257,6 +268,7 @@ stack_iter_peek(Token_Stack_Iter *iter)
 	iter->current = cur;
 	return next;
 }
+
 static void
 stack_iter_check(Token_Stack_Iter *iter, Token_Type type, const char *path, utf8_string code)
 {
@@ -536,32 +548,38 @@ ast_node_print(struct Ast_Node *node, int level)
 	switch (node->kind) {
 		case AST_BLOCK: {
 			struct AST_BLOCK data = node->data.AST_BLOCK; 
-			printf("%*sprogram\n", level*4, " ");
+			printf("%*sпрограмма\n", level*4, " ");
 			for (size_t i = 0; i < data.size; ++i)
 				ast_node_print(data.block[i], level+1);
 			break;
 		}
 		case AST_NUMBER: {
 			struct AST_NUMBER data = node->data.AST_NUMBER; 
-			printf("%*snumber(%i)\n", level*4, " ", data.value);
+			printf("%*sчисло(%i)\n", level*4, " ", data.value);
 			break;
 		}
 		case AST_BINOP: {
 			struct AST_BINOP data = node->data.AST_BINOP; 
-			printf("%*s%i: \n", level*4, " ", data.op_type);
+			printf("%*s%s: \n", level*4, " ", Operator_Names[data.op_type]);
 			ast_node_print(data.lhs, level+1);
 			ast_node_print(data.rhs, level+1);
 			break;
 		}
 		case AST_TYPE: {
 			struct AST_TYPE data = node->data.AST_TYPE;
-			printf("%*stype: %s\n", level*4, " ", Type_Names[data.type]);
+			printf("%*sтип: %s\n", level*4, " ", Type_Names[data.type]);
 			break;
 		} 
 		case AST_VAR_DEF: {
 			struct AST_VAR_DEF data = node->data.AST_VAR_DEF;
-			printf("%*svariable: %s\n", level*4, " ", data.id.str);
+			printf("%*sпеременная: %s\n", level*4, " ", data.id.str);
 			ast_node_print(data.type, level+1);
+			ast_node_print(data.expr, level+1);
+			break;
+		}
+		case AST_RETURN: {
+			struct AST_RETURN data = node->data.AST_RETURN;
+			printf("%*sвозврат:\n", level*4, " ");
 			ast_node_print(data.expr, level+1);
 			break;
 		}
@@ -628,8 +646,13 @@ parser_proc(Token_Stack *tokens, const char *path, utf8_string code)
 				stack_iter_next(&iter);
 				stack_iter_accept(&iter, TOKEN_SEMICOLON, path, code);
 				break;
+			case TOKEN_KEYWORD_RETURN:
+				ast_node_block_push_back(root, parser_parse_ret(&iter, path, code));
+				stack_iter_next(&iter);
+				stack_iter_accept(&iter, TOKEN_SEMICOLON, path, code);
+				break;
 			default:
-				error_code("Not implemented.", (Err_Info){ path, code, iter.current->line, iter.current->colm});
+				error_code("Не поддерживается", (Err_Info){ path, code, iter.current->line, iter.current->colm});
 				break;
 		}
 	}
@@ -737,6 +760,13 @@ parser_parse_expr(int min_bp, Token_Stack_Iter *iter, const char *path, utf8_str
 }
 
 static struct Ast_Node *
+parser_parse_ret(Token_Stack_Iter *iter, const char *path, utf8_string code)
+{
+	stack_iter_accept(iter, TOKEN_KEYWORD_RETURN, path, code);
+	return AST_NODE_NEW(AST_RETURN, parser_parse_expr(0, iter, path, code));
+}
+
+static struct Ast_Node *
 parser_parse_type(Token_Stack_Iter *iter, const char *path, utf8_string code)
 {
 	stack_iter_check(iter, TOKEN_IDENTIFIER, path, code);
@@ -805,6 +835,12 @@ ast_node_free(struct Ast_Node *node)
 			free_owned_utf8_string(&data.id);
 			ast_node_free(data.type);
 			ast_node_free(data.expr);
+			break;
+		}
+		case AST_RETURN: {
+			struct AST_RETURN data = node->data.AST_RETURN;
+			ast_node_free(data.expr);
+			break;
 		}
 		case AST_NUMBER: /* FALL THROUGH */
 		case AST_TYPE:
