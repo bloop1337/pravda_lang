@@ -574,7 +574,8 @@ ast_node_print(struct Ast_Node *node, int level)
 			struct AST_VAR_DEF data = node->data.AST_VAR_DEF;
 			printf("%*sпеременная: %s\n", level*4, " ", data.id.str);
 			ast_node_print(data.type, level+1);
-			ast_node_print(data.expr, level+1);
+			printf("%*sзначение: \n", (level+1)*4, " ");
+			ast_node_print(data.expr, level+1+1);
 			break;
 		}
 		case AST_RETURN: {
